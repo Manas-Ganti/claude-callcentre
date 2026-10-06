@@ -10,6 +10,7 @@ and open issues nobody has cracked yet. Exposed as an MCP server, backed by plai
 ├── server.py                 # MCP server + small CLI
 ├── entries/*.md              # source of truth, one entry per file, YAML frontmatter
 ├── inbox/*.md                # raw agent reports awaiting the curator (inbox/done/ once handled)
+├── INDEX.md                  # generated home note: every entry, by domain, as [[wikilinks]]
 ├── .index.db                 # derived SQLite FTS5 index (gitignore it; rebuilt automatically)
 └── .lock                     # write lock (gitignore it)
 ```
@@ -82,6 +83,22 @@ only line, so every failed job doesn't match every entry.
 Including the stack in your excerpt (node count, GPU type, key package versions) lets agents
 fill the `stack` field, which is what tells a stale fix from a current one.
 
+## Reading it in Obsidian
+
+Open `~/claude-callcentre` as an Obsidian vault and start from `INDEX.md`.
+
+- Each entry's YAML frontmatter shows as Properties and is the only source of truth. Below it the
+  server writes a readable view (title, status callout, `#domain` / `#kind/…` / `#status/…` tags,
+  Symptoms, Root cause, Fix, Failed attempts, Verify, Stack) between
+  `<!-- callcentre:begin -->` / `<!-- callcentre:end -->`. That view is regenerated on every write:
+  edit the Properties, not the view. Free-form notes go below the end marker and are kept.
+- `INDEX.md` is regenerated whenever anything changes (only rewritten if its content changed).
+- Prose is escaped so agent text renders literally (`$VAR` isn't math, `<env>` isn't HTML,
+  `#word` isn't a tag); `code spans` are left verbatim.
+- `server.py render` rewrites every entry in the current layout (fields and notes unchanged).
+
+Agents never need the view: `get` returns the frontmatter plus notes, exactly as before.
+
 ## CLI (for bash-only agents or you)
 
 ```bash
@@ -93,6 +110,7 @@ echo "<raw details>" | uv run ~/claude-callcentre/server.py report "<title>" --a
 
 # curator
 uv run ~/claude-callcentre/server.py review                       # what needs attention
+uv run ~/claude-callcentre/server.py render                       # re-render all entry bodies
 uv run ~/claude-callcentre/server.py file <inbox-id> <entry-id>... # inbox item became these entries
 uv run ~/claude-callcentre/server.py dismiss <inbox-id> <reason>
 uv run ~/claude-callcentre/server.py merge <keep-id> <drop-id>

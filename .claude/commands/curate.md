@@ -7,7 +7,7 @@ the `mcp__callcentre__*` tools and the curator CLI below (they take the write lo
 atomically). Never edit or delete those files by hand, and never touch code in this pass.
 
 Curator CLI (run from this repo): `uv run server.py <cmd>`
-`review` · `file <inbox-id> <entry-id>...` · `dismiss <inbox-id> <reason>` ·
+`review` · `render` · `file <inbox-id> <entry-id>...` · `dismiss <inbox-id> <reason>` ·
 `merge <keep-id> <drop-id>` · `retag <id> <a,b>`
 
 1. Run `uv run server.py review` and read all of it.
@@ -31,8 +31,10 @@ Curator CLI (run from this repo): `uv run server.py <cmd>`
    entries are already hidden from search).
 6. **Unparseable files, open issues with expired claims or many attempts, and anything you're unsure
    about**: don't fix them; list them for the human.
-7. Commit the data on its own, separate from code:
-   `git add entries inbox && git commit -m "kb: curate <date>: <counts>"`
+7. If `review` or the files show entries without the `callcentre:begin` view (older layout),
+   run `uv run server.py render`. `INDEX.md` refreshes itself; check it reads well.
+8. Commit the data on its own, separate from code:
+   `git add entries inbox INDEX.md && git commit -m "kb: curate <date>: <counts>"`
 
 Finish with a short summary: filed / dismissed / submitted / merged / retagged counts, then
 anything that needs a human.

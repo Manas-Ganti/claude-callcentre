@@ -33,6 +33,7 @@ Target layout:
 ├── server.py
 ├── pyproject.toml
 ├── .gitignore
+├── INDEX.md                        # generated (data), Obsidian home note
 ├── entries/.gitkeep
 ├── inbox/.gitkeep
 ├── commands/callcentre-send.md     # user-scope /callcentre-send (installed to ~/.claude/commands/)
@@ -46,6 +47,7 @@ Target layout:
     ├── test_concurrency.py
     ├── test_cli.py
     ├── test_curation.py
+    ├── test_obsidian.py
     └── test_mcp_stdio.py
 ```
 
@@ -233,6 +235,17 @@ Curator operations are CLI-only (not MCP tools) and take the write lock:
   files, Untagged, Stale, Unverified, Open issues, then domain counts; `Nothing to review.`
   when empty.
 
+### tests/test_obsidian.py: the human view
+
+Entry files are frontmatter (source of truth) + a body generated from it between
+`callcentre:begin` / `callcentre:end` markers + free-form notes. `_read` drops the generated part,
+so `get`, search and duplicate checks see exactly the frontmatter and notes; rewriting an entry
+never duplicates the view or loses notes. Prose is escaped for Obsidian (`$`, `<`, `#word`) but
+code spans and the fenced symptoms block are verbatim. `INDEX.md` lists open issues, entries
+by domain (most-used domain first, untagged last) and the inbox as `[[id|title]]` links; it is
+refreshed after every locked operation and not rewritten when unchanged. `render` upgrades
+legacy files without touching their fields or notes, and skips unparseable ones.
+
 ## Step 3: run
 
 ```bash
@@ -266,5 +279,5 @@ Only after tests pass:
 - Run the full suite before every commit that touches `server.py`.
 - A change to matching (`_NOISE`, `_GENERIC`, `MIN_OVERLAP`, `STRONG_OVERLAP`, `DUP_THRESHOLD`)
   needs a new row in the `test_search.py` table showing the case that motivated it.
-- `entries/` and `inbox/` are data, not code. Commits to them are knowledge-base updates and
+- `entries/`, `inbox/` and `INDEX.md` are data, not code. Commits to them are knowledge-base updates and
   should be separate from code commits. Curate them with `/curate`, not by hand-editing.

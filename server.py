@@ -78,6 +78,7 @@ def _write_lock():
         fcntl.flock(fh, fcntl.LOCK_EX)
         try:
             yield
+            _refresh_index_note()
         finally:
             fcntl.flock(fh, fcntl.LOCK_UN)
 
@@ -107,23 +108,181 @@ def _path(entry_id: str, folder: Path | None = None) -> Path:
 
 
 def _read(path: Path) -> tuple[dict, str]:
+    """(frontmatter, notes). The generated human-readable view is dropped: it's derived."""
     text = path.read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n?(.*)$", text, re.S)
     if not m:
         return {}, text
-    return (yaml.safe_load(m.group(1)) or {}), m.group(2).strip()
+    return (yaml.safe_load(m.group(1)) or {}), _GENERATED.sub("", m.group(2), count=1).strip()
 
 
 def _write(entry: dict, notes: str = "", folder: Path | None = None) -> Path:
-    """Atomic write. Caller must hold _write_lock."""
+    """Atomic write. Caller must hold _write_lock. Entries get a rendered body for humans
+    (Obsidian); the frontmatter stays the only source of truth."""
     path = _path(entry["id"], folder)
     path.parent.mkdir(parents=True, exist_ok=True)
     front = yaml.safe_dump(entry, sort_keys=False, allow_unicode=True, width=100)
-    body = f"---\n{front}---\n{notes.strip()}\n" if notes.strip() else f"---\n{front}---\n"
-    tmp = path.with_suffix(".md.tmp")
-    tmp.write_text(body, encoding="utf-8")
-    os.replace(tmp, path)
+    view = _render_entry(entry, bool(notes.strip())) if folder is None else ""
+    body = f"---\n{front}---\n{view}" + (f"{notes.strip()}\n" if notes.strip() else "")
+    _atomic_write(path, body)
     return path
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+# ----------------------------------------------------------------------------- human view
+# Entries are read by agents through `get` (frontmatter as YAML) and by humans in Obsidian. The
+# body between the markers is regenerated from the frontmatter on every write; notes follow it.
+
+_BEGIN = "<!-- callcentre:begin (generated from the properties above: edit those, not this) -->"
+_END = "<!-- callcentre:end -->"
+_GENERATED = re.compile(r"<!-- callcentre:begin.*?<!-- callcentre:end -->\n?", re.S)
+_CALLOUT = {"verified": "success", "unverified": "note", "stale": "warning", "open": "bug",
+            "claimed": "bug"}
+INDEX_NOTE = "INDEX.md"
+
+
+def _md(text) -> str:
+    """Neutralise Obsidian syntax that agent prose trips over ($..$ math, <tag> HTML, #tags),
+    leaving `code spans` verbatim."""
+    parts = re.split(r"(`+[^`]*?`+)", str(text))
+    for i in range(0, len(parts), 2):
+        p = parts[i].replace("\\", "\\\\").replace("$", "\\$").replace("<", "\\<")
+        parts[i] = re.sub(r"(^|\s)#(?=[A-Za-z])", r"\1\\#", p, flags=re.M)
+    return "".join(parts)
+
+
+def _fence(lines: list[str], lang: str = "text") -> str:
+    body = "\n".join(str(l) for l in lines)
+    ticks = "`" * max(3, max((len(r) for r in re.findall(r"`+", body)), default=0) + 1)
+    return f"{ticks}{lang}\n{body}\n{ticks}"
+
+
+def _bullets(items) -> str:
+    return "\n".join("- " + _md(x).replace("\n", "\n  ") for x in _as_list(items))
+
+
+def _tag(x) -> str:
+    t = re.sub(r"[^\w/-]+", "-", str(x)).strip("-")
+    return t if re.search(r"[A-Za-z_]", t) else f"t-{t}"
+
+
+def _link(eid: str, title) -> str:
+    return f"[[{eid}|{re.sub(r'[][|#^]+', ' ', str(title)).strip()}]]"
+
+
+def _render_entry(e: dict, has_notes: bool) -> str:
+    kind, status = e.get("kind") or "fix", e.get("status") or "unverified"
+    badge = [kind.replace("_", " "), status]
+    if kind == "open_issue":
+        badge.append(f"{len(_as_list(e.get('attempts')))} attempts logged")
+        if e.get("claimed_by"):
+            badge.append(f"claimed by {e['claimed_by']} until {e.get('claim_expires')}")
+    else:
+        badge.append(f"used {int(e.get('uses') or 0)}×, failed {int(e.get('failures') or 0)}×")
+        if e.get("last_verified"):
+            badge.append(f"last verified {e['last_verified']}")
+    tags = [f"#{_tag(d)}" for d in _as_list(e.get("domain"))] + [f"#kind/{kind}", f"#status/{status}"]
+    out = [_BEGIN, f"# {_md(e.get('title', e.get('id', '')))}", "",
+           f"> [!{_CALLOUT.get(status, 'info')}] {' · '.join(_md(b) for b in badge)}",
+           f"> {' '.join(tags)}", ""]
+
+    def section(name, content):
+        if content:
+            out.extend([f"## {name}", content, ""])
+
+    section("Symptoms", _fence(_as_list(e.get("symptoms"))) if e.get("symptoms") else "")
+    section("Repro", _md(e.get("repro") or ""))
+    section("Root cause", _md(e.get("root_cause") or ""))
+    section("Convention" if kind == "convention" else "Fix", _md(e.get("fix") or ""))
+    section("Attempts so far", _bullets(e.get("attempts")))
+    section("Failed attempts", _bullets(e.get("failed_attempts")))
+    section("Verify", _md(e.get("verify") or ""))
+    stack = e.get("stack") or {}
+    if isinstance(stack, dict) and stack:
+        rows = [f"| {_md(k)} | {_md(_flatten(v)).replace('|', '/')} |" for k, v in stack.items()]
+        section("Stack", "\n".join(["| | |", "|---|---|", *rows]))
+    elif stack:
+        section("Stack", _md(_flatten(stack)))
+    section("Outcome reports", _bullets(e.get("outcome_notes")))
+    meta = [f"created {e['created']}"] if e.get("created") else []
+    if e.get("resolved_by"):
+        meta.append(f"resolved by {e['resolved_by']}")
+    if e.get("merged_from"):
+        meta.append("merged from " + ", ".join(f"`{m}`" for m in _as_list(e["merged_from"])))
+    meta.append(f"id `{e.get('id', '')}`")
+    out.extend([f"<small>{' · '.join(meta)}</small>", ""])
+    if has_notes:
+        out.extend(["## Notes", ""])
+    out.append(_END)
+    return "\n".join(out) + "\n"
+
+
+def _render_index() -> str:
+    """INDEX.md: the vault's home note. Deterministic, so unchanged data means no git churn."""
+    con = _db()
+    try:
+        _sync(con)
+        rows = con.execute("SELECT id, kind, status, domain, title, uses FROM meta "
+                           "ORDER BY title COLLATE NOCASE").fetchall()
+    finally:
+        con.close()
+    mark = {"verified": "✅", "unverified": "🆕", "stale": "⚠️"}
+    issues, by_domain = [], {}
+    for eid, kind, status, domain, title, uses in rows:
+        if kind == "open_issue":
+            n = len(_as_list(_meta_or_empty(ENTRIES / f"{eid}.md").get("attempts")))
+            issues.append(f"- 🔴 {_link(eid, title)} · {n} attempts")
+            continue
+        line = f"- {mark.get(status or 'unverified', '•')} {_link(eid, title)}"
+        line += f" · used {uses}×" if uses else ""
+        for d in (domain or "").split() or ["untagged"]:
+            by_domain.setdefault(d, []).append(line)
+    inbox = sorted(_inbox().glob("*.md")) if _inbox().exists() else []
+    n_fix = sum(1 for r in rows if r[1] != "open_issue")
+    out = ["---", "tags: [callcentre/index]", "---", "# Call centre", "",
+           "> [!info] Generated by server.py on every change; don't edit by hand.",
+           f"> {n_fix} entries · {len(issues)} open issues · {len(inbox)} inbox items awaiting "
+           "curation", "> ✅ verified · 🆕 unverified · ⚠️ stale (hidden from search) · 🔴 open", ""]
+    if issues:
+        out += [f"## Open issues ({len(issues)})", *issues, ""]
+    for d in sorted(by_domain, key=lambda d: (d == "untagged", -len(by_domain[d]), d)):
+        out += [f"## {d} ({len(by_domain[d])})", *by_domain[d], ""]
+    if inbox:
+        out += [f"## Inbox ({len(inbox)})"]
+        out += [f"- {_link(p.stem, _meta_or_empty(p).get('title', p.stem))}" for p in inbox]
+        out.append("")
+    return "\n".join(out)
+
+
+def _refresh_index_note() -> None:
+    try:
+        text, path = _render_index(), HOME / INDEX_NOTE
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            _atomic_write(path, text)
+    except Exception as err:  # never fail a write over the derived view; stdout is the MCP pipe
+        print(f"callcentre: could not refresh {INDEX_NOTE}: {err}", file=sys.stderr)
+
+
+def _render_all() -> str:
+    """Rewrite every entry in the current layout (frontmatter and notes unchanged)."""
+    n, bad = 0, []
+    with _write_lock():
+        for p in sorted(ENTRIES.glob("*.md")):
+            try:
+                e, notes = _read(p)
+                if not isinstance(e, dict) or e.get("id") != p.stem:
+                    raise ValueError("missing or mismatched id")
+            except Exception:
+                bad.append(p.name)
+                continue
+            _write(e, notes)
+            n += 1
+    return f"rendered {n} entries" + (f"; skipped unparseable: {', '.join(bad)}" if bad else "")
 
 
 def _locate(entry_id: str, folder: Path | None = None) -> Path:
@@ -711,9 +870,9 @@ USAGE = """usage: server.py <command>   (no args: run MCP server)
   open                               reindex
   report <title> [--agent A] [--project P] [--domain a,b]   (details on stdin)
 curator:
-  review                             file <inbox-id> <entry-id>...
-  dismiss <inbox-id> <reason>        merge <keep-id> <drop-id>
-  retag <id> <domain,domain>"""
+  review                             render
+  file <inbox-id> <entry-id>...      dismiss <inbox-id> <reason>
+  merge <keep-id> <drop-id>          retag <id> <domain,domain>"""
 
 
 def _csv(x: str | None) -> list[str]:
@@ -746,6 +905,8 @@ def _cli(argv: list[str]) -> None:
                      project=opts.get("project", ""), domain=_csv(opts.get("domain"))))
     elif cmd == "review":
         print(_review())
+    elif cmd == "render":
+        print(_render_all())
     elif cmd == "file" and len(args) >= 2:
         print(_file_inbox(args[0], args[1:]))
     elif cmd == "dismiss" and len(args) >= 2:
