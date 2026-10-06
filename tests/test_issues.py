@@ -107,3 +107,18 @@ def test_open_issue_duplicate_guard(issue):
                                     symptoms=SYMS, force=True))
     assert forced != iid and len(entry_files(cc)) == 2
     assert re.fullmatch(r"[a-z0-9-]+-[0-9a-f]{4}", forced)
+
+
+def test_expired_claim_shows_unclaimed_without_file_change(issue, monkeypatch):
+    cc, iid = issue
+    cc.claim_issue(iid, "agent-a", lease_minutes=60)
+    assert "(open_issue; claimed" in _summary(cc, iid)
+    assert "claimed by agent-a" in _summary(cc, iid)
+    p = cc.ENTRIES / f"{iid}.md"
+    before = p.stat().st_mtime_ns
+    later = cc._now() + dt.timedelta(minutes=61)
+    monkeypatch.setattr(cc, "_now", lambda: later)
+    summary = _summary(cc, iid)
+    assert "(open_issue; open" in summary
+    assert "OPEN (unclaimed, 0 attempts logged)" in summary
+    assert p.stat().st_mtime_ns == before  # search is read-only

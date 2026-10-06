@@ -124,3 +124,14 @@ def test_deleting_index_loses_nothing(cc):
     after = (ids(cc.search(NCCL_QUERY)), ids(cc.search("GRPO reward gsm8k accuracy")))
     assert after == before
     assert cc.INDEX_DB.exists()
+
+
+def test_hand_written_entry_without_status_is_searchable(cc):
+    cc.ENTRIES.mkdir(parents=True, exist_ok=True)
+    (cc.ENTRIES / "hand-written-0001.md").write_text(
+        "---\nid: hand-written-0001\nkind: fix\ntitle: Tokenizer pads on the wrong side\n"
+        "symptoms:\n- generations are garbage after left padding in batched rollout\n"
+        "fix: set tokenizer.padding_side = 'left' before generate\n---\n")
+    out = cc.search("garbage generations with left padding in batched rollout")
+    assert ids(out) == ["hand-written-0001"], out
+    assert "(fix; unverified" in out and "None" not in out

@@ -226,7 +226,7 @@ def _search(query: str, domain: str | None, kind: str | None, limit: int,
         sql += " AND m.kind = ?"
         args.append(kind)
     if not include_stale:
-        sql += " AND m.status != 'stale'"
+        sql += " AND (m.status IS NULL OR m.status != 'stale')"  # hand-written entries may lack status
     sql += " ORDER BY score LIMIT ?"
     args.append(limit)
     con = _db()
@@ -236,7 +236,10 @@ def _search(query: str, domain: str | None, kind: str | None, limit: int,
     finally:
         con.close()
     cols = ["id", "kind", "status", "title", "summary", "uses", "failures", "last_verified", "_s"]
-    return [{k: v for k, v in zip(cols, r) if k != "_s"} for r in rows]
+    hits = [{k: v for k, v in zip(cols, r) if k != "_s"} for r in rows]
+    for h in hits:
+        h["status"] = h["status"] or "unverified"
+    return hits
 
 
 def _jaccard(a: str, b: str) -> float:
@@ -337,6 +340,9 @@ def search(query: str, domain: str | None = None, kind: str | None = None,
     kept = []
     for h in _search(probe_text, domain, kind, 15, include_stale):
         e, _ = _load(h["id"])
+        if e.get("kind") == "open_issue":  # claim state depends on the clock, not just the file
+            h["status"] = "claimed" if e.get("claimed_by") and not _lease_expired(e) else "open"
+            h["summary"] = _oneline(e)
         syms = _norm_symptoms(e)
         doc = set(_tokens(f"{e.get('title', '')} {syms} {e.get('root_cause') or ''}"))
         overlap = len(probe & doc) / len(probe)
