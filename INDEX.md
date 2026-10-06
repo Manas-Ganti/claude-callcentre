@@ -13,7 +13,7 @@ tags: [callcentre/index]
 - 🔴 [[isaac-sim-4-5-rtx-rendering-segfaults-at-simulationapp-start-45a9|Isaac Sim 4.5 RTX rendering segfaults at SimulationApp start on VT ARC L40S (enable_cameras=True)]] · 3 attempts
 - 🔴 [[trl-grpo-multi-turn-vlm-rollouts-are-sequential-per-prompt-4-5ea1|TRL GRPO multi-turn VLM rollouts are sequential per prompt — ~401 s/step on 8xA100, runs underpowered]] · 3 attempts
 
-## infra (25)
+## [[domains/infra|infra]] (25)
 - 🆕 [[8-gpu-grpo-run-oom-killed-by-slurm-cgroup-exactly-at-checkpo-1883|8-GPU GRPO run OOM-killed by SLURM cgroup exactly at checkpoint save — --mem cap too low; add resume_from_checkpoint]]
 - 🆕 [[var-x-sbatch-launcher-slurm-silently-drops-variables-the-lau-6486|`VAR=x sbatch launcher.slurm` silently drops variables the launcher doesn't read; .slurm is snapshotted at submit time]]
 - 🆕 [[conda-env-silently-falls-through-to-base-inside-slurm-batch-65e5|Conda env silently falls through to base inside SLURM batch jobs on ARC (module load Miniforge3 can't see personal ~/miniconda3)]]
@@ -40,7 +40,7 @@ tags: [callcentre/index]
 - 🆕 [[vt-arc-slurm-scheduling-mem-0-blocks-backfill-use-tc-normal-b1ca|VT ARC SLURM scheduling: --mem=0 blocks backfill, use tc_*_normal_short QOS, never preemptable, account/mail flags]]
 - 🆕 [[zero-3-still-ooms-loading-a-32b-model-on-80gb-a100s-every-ra-83eb|ZeRO-3 still OOMs loading a 32B model on 80GB A100s — every rank materialises the full model in from_pretrained]]
 
-## isaac-sim (19)
+## [[domains/isaac-sim|isaac-sim]] (19)
 - ✅ [[attaching-a-payload-body-to-an-isaac-lab-articulation-rigidb-1bad|Attaching a payload body to an Isaac Lab articulation (RigidBodyAPI + FixedJoint before clone_environments)]] · used 1×
 - ✅ [[before-training-a-robot-policy-check-the-robot-can-do-the-ta-eae8|Before training a robot policy: check the robot can do the task, and run the eval sanity triad]] · used 1×
 - 🆕 [[friction-randomization-inert-in-isaac-lab-robot-tyre-materia-735f|Friction randomization inert in Isaac Lab: robot tyre material wins the PhysX combine mode]]
@@ -61,7 +61,7 @@ tags: [callcentre/index]
 - ✅ [[verifying-isaac-lab-physics-silent-failures-dominate-so-prob-57db|Verifying Isaac Lab physics: silent failures dominate, so probe every study axis with a forced-condition test]] · used 1×
 - 🆕 [[wrong-robot-geometry-from-usd-bounding-boxes-stale-extent-hi-a22b|Wrong robot geometry from USD bounding boxes (stale extent hint; rotated cylinder wheel radius)]]
 
-## vt-arc (19)
+## [[domains/vt-arc|vt-arc]] (19)
 - 🆕 [[8-gpu-grpo-run-oom-killed-by-slurm-cgroup-exactly-at-checkpo-1883|8-GPU GRPO run OOM-killed by SLURM cgroup exactly at checkpoint save — --mem cap too low; add resume_from_checkpoint]]
 - 🆕 [[var-x-sbatch-launcher-slurm-silently-drops-variables-the-lau-6486|`VAR=x sbatch launcher.slurm` silently drops variables the launcher doesn't read; .slurm is snapshotted at submit time]]
 - 🆕 [[conda-env-silently-falls-through-to-base-inside-slurm-batch-65e5|Conda env silently falls through to base inside SLURM batch jobs on ARC (module load Miniforge3 can't see personal ~/miniconda3)]]
@@ -82,7 +82,7 @@ tags: [callcentre/index]
 - 🆕 [[vt-arc-slurm-scheduling-mem-0-blocks-backfill-use-tc-normal-b1ca|VT ARC SLURM scheduling: --mem=0 blocks backfill, use tc_*_normal_short QOS, never preemptable, account/mail flags]]
 - 🆕 [[zero-3-still-ooms-loading-a-32b-model-on-80gb-a100s-every-ra-83eb|ZeRO-3 still OOMs loading a 32B model on 80GB A100s — every rank materialises the full model in from_pretrained]]
 
-## rl-training (17)
+## [[domains/rl-training|rl-training]] (17)
 - 🆕 [[8-gpu-grpo-run-oom-killed-by-slurm-cgroup-exactly-at-checkpo-1883|8-GPU GRPO run OOM-killed by SLURM cgroup exactly at checkpoint save — --mem cap too low; add resume_from_checkpoint]]
 - ✅ [[before-training-a-robot-policy-check-the-robot-can-do-the-ta-eae8|Before training a robot policy: check the robot can do the task, and run the eval sanity triad]] · used 1×
 - 🆕 [[custom-grpo-lora-trainer-next-to-vllm-keeps-ooming-slice-log-af5e|Custom GRPO LoRA trainer next to vLLM keeps OOMing: slice logits before log_softmax, ref pass first, own GPU + set_device]]
@@ -101,7 +101,7 @@ tags: [callcentre/index]
 - 🆕 [[zero-3-still-ooms-loading-a-32b-model-on-80gb-a100s-every-ra-83eb|ZeRO-3 still OOMs loading a 32B model on 80GB A100s — every rank materialises the full model in from_pretrained]]
 - 🆕 [[20-structured-output-truncation-from-inter-token-whitespace-ded5|~20% structured-output truncation from inter-token whitespace runaway: set disable_any_whitespace with backend named explicitly]]
 
-## env (16)
+## [[domains/env|env]] (16)
 - 🆕 [[action-0-is-not-stop-with-asymmetric-action-ranges-parked-pr-78ee|Action 0 is not 'stop' with asymmetric action ranges -- parked probes actually drove]]
 - ✅ [[attaching-a-payload-body-to-an-isaac-lab-articulation-rigidb-1bad|Attaching a payload body to an Isaac Lab articulation (RigidBodyAPI + FixedJoint before clone_environments)]] · used 1×
 - 🆕 [[friction-randomization-inert-in-isaac-lab-robot-tyre-materia-735f|Friction randomization inert in Isaac Lab: robot tyre material wins the PhysX combine mode]]
@@ -119,7 +119,7 @@ tags: [callcentre/index]
 - ✅ [[verifying-isaac-lab-physics-silent-failures-dominate-so-prob-57db|Verifying Isaac Lab physics: silent failures dominate, so probe every study axis with a forced-condition test]] · used 1×
 - 🆕 [[wrong-robot-geometry-from-usd-bounding-boxes-stale-extent-hi-a22b|Wrong robot geometry from USD bounding boxes (stale extent hint; rotated cylinder wheel radius)]]
 
-## python-env (12)
+## [[domains/python-env|python-env]] (12)
 - 🆕 [[conda-env-silently-falls-through-to-base-inside-slurm-batch-65e5|Conda env silently falls through to base inside SLURM batch jobs on ARC (module load Miniforge3 can't see personal ~/miniconda3)]]
 - 🆕 [[isaac-lab-v2-1-core-isaaclab-package-silently-not-installed-33aa|Isaac Lab v2.1 core `isaaclab` package silently not installed (flatdict build fails on pkg_resources)]]
 - 🆕 [[pip-resolutionimpossible-antlr4-python3-runtime-4-11-1-vs-la-e05a|pip ResolutionImpossible: antlr4-python3-runtime==4.11.1 vs latex2sympy2==1.9.1 in math eval requirements]]
@@ -133,7 +133,7 @@ tags: [callcentre/index]
 - 🆕 [[vllm-0-6-1-env-unpinned-transformers-now-installs-5-x-and-br-00bf|vllm 0.6.1 env: unpinned transformers now installs 5.x and breaks vllm; pin transformers==4.44.2]]
 - 🆕 [[vllm-structured-output-api-renamed-guideddecodingparams-stru-c271|vLLM structured-output API renamed (GuidedDecodingParams -> StructuredOutputsParams): detect from SamplingParams signature]]
 
-## dataviz (11)
+## [[domains/dataviz|dataviz]] (11)
 - 🆕 [[1m-time-series-assignment-template-y-is-regenerated-randomly-c86a|1M time-series assignment template: Y is regenerated randomly on every run]]
 - 🆕 [[agents-writing-copy-paste-code-for-a-user-s-observable-noteb-0f0a|Agents writing copy-paste code for a user's Observable notebook: one block = one cell, trace every name]]
 - 🆕 [[classic-observable-runtimeerror-x-is-not-defined-cascading-a-cec1|Classic Observable "RuntimeError: X is not defined" cascading across cells = a cell was never pasted, not a code bug]]
@@ -146,7 +146,7 @@ tags: [callcentre/index]
 - 🆕 [[tolocalestring-follows-the-system-locale-indian-grouping-10-d779|toLocaleString() follows the system locale (Indian grouping 10,00,000 on this Mac), so numbers don't match d3.format(",")]]
 - 🆕 [[visualizing-1m-point-time-series-in-d3-observable-per-pixel-fa81|Visualizing 1M-point time series in D3/Observable: per-pixel min/max/mean binning + linked overview→context→detail]]
 
-## eval (11)
+## [[domains/eval|eval]] (11)
 - 🆕 [[action-0-is-not-stop-with-asymmetric-action-ranges-parked-pr-78ee|Action 0 is not 'stop' with asymmetric action ranges -- parked probes actually drove]]
 - ✅ [[before-training-a-robot-policy-check-the-robot-can-do-the-ta-eae8|Before training a robot policy: check the robot can do the task, and run the eval sanity triad]] · used 1×
 - 🆕 [[pip-resolutionimpossible-antlr4-python3-runtime-4-11-1-vs-la-e05a|pip ResolutionImpossible: antlr4-python3-runtime==4.11.1 vs latex2sympy2==1.9.1 in math eval requirements]]
@@ -159,7 +159,7 @@ tags: [callcentre/index]
 - 🆕 [[vlm-probe-gates-use-auc-not-argmax-accuracy-and-check-file-g-f83b|VLM probe gates: use AUC, not argmax accuracy, and check file geometry doesn't predict the label]]
 - 🆕 [[20-structured-output-truncation-from-inter-token-whitespace-ded5|~20% structured-output truncation from inter-token whitespace runaway: set disable_any_whitespace with backend named explicitly]]
 
-## observable (10)
+## [[domains/observable|observable]] (10)
 - 🆕 [[1m-time-series-assignment-template-y-is-regenerated-randomly-c86a|1M time-series assignment template: Y is regenerated randomly on every run]]
 - 🆕 [[agents-writing-copy-paste-code-for-a-user-s-observable-noteb-0f0a|Agents writing copy-paste code for a user's Observable notebook: one block = one cell, trace every name]]
 - 🆕 [[classic-observable-runtimeerror-x-is-not-defined-cascading-a-cec1|Classic Observable "RuntimeError: X is not defined" cascading across cells = a cell was never pasted, not a code bug]]
@@ -171,7 +171,7 @@ tags: [callcentre/index]
 - 🆕 [[tolocalestring-follows-the-system-locale-indian-grouping-10-d779|toLocaleString() follows the system locale (Indian grouping 10,00,000 on this Mac), so numbers don't match d3.format(",")]]
 - 🆕 [[visualizing-1m-point-time-series-in-d3-observable-per-pixel-fa81|Visualizing 1M-point time series in D3/Observable: per-pixel min/max/mean binning + linked overview→context→detail]]
 
-## slurm (10)
+## [[domains/slurm|slurm]] (10)
 - 🆕 [[8-gpu-grpo-run-oom-killed-by-slurm-cgroup-exactly-at-checkpo-1883|8-GPU GRPO run OOM-killed by SLURM cgroup exactly at checkpoint save — --mem cap too low; add resume_from_checkpoint]]
 - 🆕 [[var-x-sbatch-launcher-slurm-silently-drops-variables-the-lau-6486|`VAR=x sbatch launcher.slurm` silently drops variables the launcher doesn't read; .slurm is snapshotted at submit time]]
 - 🆕 [[conda-env-silently-falls-through-to-base-inside-slurm-batch-65e5|Conda env silently falls through to base inside SLURM batch jobs on ARC (module load Miniforge3 can't see personal ~/miniconda3)]]
@@ -183,31 +183,31 @@ tags: [callcentre/index]
 - 🆕 [[vt-arc-job-environment-export-hf-home-and-wandb-dir-explicit-cd71|VT ARC job environment: export HF_HOME and WANDB_DIR explicitly on every submit]]
 - 🆕 [[vt-arc-slurm-scheduling-mem-0-blocks-backfill-use-tc-normal-b1ca|VT ARC SLURM scheduling: --mem=0 blocks backfill, use tc_*_normal_short QOS, never preemptable, account/mail flags]]
 
-## deepspeed (4)
+## [[domains/deepspeed|deepspeed]] (4)
 - 🆕 [[deepspeed-optimizer-offload-dies-with-missingcudaexception-d-c1ef|DeepSpeed optimizer offload dies with MissingCUDAException (DeepSpeedCPUAdam needs nvcc) on ARC compute nodes — use offload_param only for LoRA]]
 - 🆕 [[heredoc-patching-a-json-config-wrote-a-literal-n-and-broke-t-9e8c|Heredoc-patching a JSON config wrote a literal \n and broke the DeepSpeed config]]
 - 🆕 [[importing-deepspeed-on-an-arc-login-node-runtimeerror-0-acti-ee72|Importing deepspeed on an ARC login node: RuntimeError 0 active drivers (not a broken env)]]
 - 🆕 [[zero-3-still-ooms-loading-a-32b-model-on-80gb-a100s-every-ra-83eb|ZeRO-3 still OOMs loading a 32B model on 80GB A100s — every rank materialises the full model in from_pretrained]]
 
-## structured-output (4)
+## [[domains/structured-output|structured-output]] (4)
 - 🆕 [[sft-targets-for-a-grammar-constrained-policy-must-byte-match-ea9a|SFT targets for a grammar-constrained policy must BYTE-match what the decoder emits (key order, value types, separators)]]
 - 🆕 [[vllm-structured-output-api-renamed-guideddecodingparams-stru-c271|vLLM structured-output API renamed (GuidedDecodingParams -> StructuredOutputsParams): detect from SamplingParams signature]]
 - 🆕 [[vllm-xgrammar-ignores-json-schema-maxlength-minimum-maximum-0f65|vLLM/xgrammar ignores JSON-schema maxLength/minimum/maximum (and likely maxItems): bind with `pattern` instead]]
 - 🆕 [[20-structured-output-truncation-from-inter-token-whitespace-ded5|~20% structured-output truncation from inter-token whitespace runaway: set disable_any_whitespace with backend named explicitly]]
 
-## distributed (2)
+## [[domains/distributed|distributed]] (2)
 - 🆕 [[multi-node-nccl-fails-net-ib-vendor-err-249-on-vt-arc-2-node-23b7|Multi-node NCCL fails "NET/IB ... vendor err 249" on VT ARC: 2-node request mixed DGX + standard GPU node]]
 - 🆕 [[nccl-bootstrap-no-socket-interface-found-on-vt-arc-h200-node-92ad|NCCL "Bootstrap : no socket interface found" on VT ARC H200 nodes — hardcoded NCCL_SOCKET_IFNAME=ib0]]
 
-## sft (2)
+## [[domains/sft|sft]] (2)
 - 🆕 [[reds-lab-project-reasoning-sft-llm-readme-setup-gotchas-yaml-2191|reds-lab Project-Reasoning-SFT-LLM: README setup gotchas (YAML comments, clone, SLURM limit, cutoff_len, skipped benchmarks)]]
 - 🆕 [[sft-targets-for-a-grammar-constrained-policy-must-byte-match-ea9a|SFT targets for a grammar-constrained policy must BYTE-match what the decoder emits (key order, value types, separators)]]
 
-## agent-workflow (1)
+## [[domains/agent-workflow|agent-workflow]] (1)
 - 🆕 [[agents-writing-copy-paste-code-for-a-user-s-observable-noteb-0f0a|Agents writing copy-paste code for a user's Observable notebook: one block = one cell, trace every name]]
 
-## datasets (1)
+## [[domains/datasets|datasets]] (1)
 - 🆕 [[counties2010f-csv-us-counties-2010-columns-quirks-and-sanity-0821|Counties2010f.csv (US counties 2010): columns, quirks and sanity values]]
 
-## testing (1)
+## [[domains/testing|testing]] (1)
 - 🆕 [[testing-observable-notebook-cells-plot-d3-htl-inputs-headles-bccf|Testing Observable notebook cells (Plot / D3 / htl / Inputs) headlessly in Node + jsdom when no browser is available]]
