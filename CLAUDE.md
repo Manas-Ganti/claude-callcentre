@@ -16,7 +16,7 @@ wrong about current behaviour, stop and report it rather than editing the test t
   run against a `tmp_path` home. Setting the env var after import does nothing; the fixture must
   patch the module globals (see conftest below). Subprocess tests must pass `CALLCENTRE_HOME` in
   their environment.
-- Before running anything, check that `~/callcentre/entries/` is empty or doesn't exist yet. If it
+- Before running anything, check that `~/claude-callcentre/entries/` is empty or doesn't exist yet. If it
   already contains entries, do not delete, move or rewrite them.
 - Keep `server.py` a single file runnable with `uv run server.py`. Its inline `# /// script` header
   is how the MCP registration gets its dependencies; don't remove it.
@@ -27,7 +27,7 @@ wrong about current behaviour, stop and report it rather than editing the test t
 Target layout:
 
 ```
-~/callcentre/
+~/claude-callcentre/
 ├── CLAUDE.md
 ├── README.md
 ├── server.py
@@ -230,7 +230,7 @@ Commit with a message describing the scaffold and test suite.
 
 Only after tests pass:
 
-1. `claude mcp add --scope user callcentre -- uv run ~/callcentre/server.py`
+1. `claude mcp add --scope user callcentre -- uv run ~/claude-callcentre/server.py`
    (skip if `claude mcp list` already shows it).
 2. In `~/.claude/settings.json`, add `"mcp__callcentre"` to `permissions.allow`, merging with
    any existing entries. Show me the diff before writing.

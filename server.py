@@ -28,7 +28,7 @@ try:  # mcp 2.x
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server
 
-HOME = Path(os.environ.get("CALLCENTRE_HOME", "~/callcentre")).expanduser()
+HOME = Path(os.environ.get("CALLCENTRE_HOME", "~/claude-callcentre")).expanduser()
 ENTRIES = HOME / "entries"
 INDEX_DB = HOME / ".index.db"
 LOCK_FILE = HOME / ".lock"

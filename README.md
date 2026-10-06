@@ -6,7 +6,7 @@ and open issues nobody has cracked yet. Exposed as an MCP server, backed by plai
 ## Layout
 
 ```
-~/callcentre/                 # $CALLCENTRE_HOME (make this a git repo)
+~/claude-callcentre/          # $CALLCENTRE_HOME (make this a git repo)
 ├── server.py                 # MCP server + small CLI
 ├── entries/*.md              # source of truth, one entry per file, YAML frontmatter
 ├── .index.db                 # derived SQLite FTS5 index (gitignore it; rebuilt automatically)
@@ -16,12 +16,12 @@ and open issues nobody has cracked yet. Exposed as an MCP server, backed by plai
 ## Setup
 
 ```bash
-mkdir -p ~/callcentre && cp server.py ~/callcentre/
-cd ~/callcentre && git init && printf '.index.db*\n.lock\n*.tmp\n' > .gitignore
+mkdir -p ~/claude-callcentre && cp server.py ~/claude-callcentre/
+cd ~/claude-callcentre && git init && printf '.index.db*\n.lock\n*.tmp\n' > .gitignore
 
 # Register for every Claude Code project on this Mac (user scope).
 # uv reads the inline dependency header in server.py, so no venv to manage.
-claude mcp add --scope user callcentre -- uv run ~/callcentre/server.py
+claude mcp add --scope user callcentre -- uv run ~/claude-callcentre/server.py
 ```
 
 Then add this to `~/.claude/CLAUDE.md` so agents actually use it:
@@ -63,10 +63,10 @@ fill the `stack` field, which is what tells a stale fix from a current one.
 ## CLI (for bash-only agents or you)
 
 ```bash
-uv run ~/callcentre/server.py search "NCCL watchdog timeout"
-uv run ~/callcentre/server.py get <id>
-uv run ~/callcentre/server.py open        # list open issues
-uv run ~/callcentre/server.py reindex
+uv run ~/claude-callcentre/server.py search "NCCL watchdog timeout"
+uv run ~/claude-callcentre/server.py get <id>
+uv run ~/claude-callcentre/server.py open        # list open issues
+uv run ~/claude-callcentre/server.py reindex
 ```
 
 ## Known limits (deliberate for v1)
