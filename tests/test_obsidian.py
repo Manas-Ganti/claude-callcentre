@@ -89,11 +89,12 @@ def test_index_note(cc):
     assert idx.startswith("---\ntags: [callcentre/index]\n---\n# Call centre")
     assert "> 3 entries · 1 open issues · 1 inbox items awaiting curation" in idx
     assert f"## Open issues (1)\n- 🔴 [[{iid}|Reward NaN after step 400]] · 1 attempts" in idx
-    rl = idx.split("## rl-training (2)\n", 1)[1].split("\n\n", 1)[0]
+    rl = idx.split("## [[domains/rl-training|rl-training]] (2)\n", 1)[1].split("\n\n", 1)[0]
     assert f"[[{ev}|Eval accuracy drops while GRPO reward rises]] · used 1×" in rl and nccl in rl
-    assert f"## infra (1)\n- ✅ [[{nccl}|" in idx and f"## eval (1)\n- ✅ [[{ev}|" in idx
-    assert f"## untagged (1)\n- 🆕 [[{loose}|Name wandb runs by sweep]]" in idx
-    assert idx.index("## rl-training") < idx.index("## eval") < idx.index("## untagged")
+    assert f"## [[domains/infra|infra]] (1)\n- ✅ [[{nccl}|" in idx
+    assert f"## [[domains/eval|eval]] (1)\n- ✅ [[{ev}|" in idx
+    assert f"## [[domains/untagged|untagged]] (1)\n- 🆕 [[{loose}|Name wandb runs by sweep]]" in idx
+    assert idx.index("|rl-training]]") < idx.index("|eval]]") < idx.index("|untagged]]")
     assert f"## Inbox (1)\n- [[{rid}|vLLM ignores max_model_len]]" in idx
 
 
@@ -151,3 +152,77 @@ def test_render_missing_only_touches_outdated_files(cc):
 
 def test_render_missing_on_empty_home(cc):
     assert cc._render_missing() == 0
+
+
+def test_domain_hub_notes(cc):
+    nccl, ev = nccl_fix(cc), eval_fix(cc)
+    iid = saved_id(cc.open_issue(title="Reward NaN after step 400", symptoms=["loss is nan"],
+                                 domain=["rl-training"]))
+    hubs = cc.HOME / "domains"
+    assert sorted(p.stem for p in hubs.glob("*.md")) == ["eval", "infra", "rl-training"]
+    rl = (hubs / "rl-training.md").read_text()
+    assert rl.startswith("---\ntags: [callcentre/domain]\n---\n# rl-training")
+    assert "> #rl-training #callcentre/domain" in rl  # hub takes its domain's graph colour
+    assert f"## Open issues (1)\n- 🔴 [[{iid}|" in rl
+    assert f"## Entries (2)\n" in rl and nccl in rl and ev in rl
+    cc._retag(ev, ["eval"])
+    cc._retag(nccl, ["rl-training"])
+    assert sorted(p.stem for p in hubs.glob("*.md")) == ["eval", "rl-training"]  # infra hub removed
+    assert ev not in (hubs / "rl-training.md").read_text()
+
+
+def _graph(cc, cfg=None):
+    import json
+    (cc.HOME / ".obsidian").mkdir(parents=True, exist_ok=True)
+    (cc.HOME / ".obsidian" / "graph.json").write_text(json.dumps(cfg or {"search": "", "colorGroups": []}))
+
+
+def _read_graph(cc):
+    import json
+    return json.loads((cc.HOME / ".obsidian" / "graph.json").read_text())
+
+
+def test_graph_colour_groups(cc):
+    _graph(cc)
+    nccl_fix(cc), eval_fix(cc)
+    saved_id(cc.open_issue(title="Reward NaN after step 400", symptoms=["loss is nan"],
+                           domain=["rl-training"]))
+    g = _read_graph(cc)
+    queries = [x["query"] for x in g["colorGroups"]]
+    # open issues first; then domains with >= 2 notes, rarest first (infra/eval have 1: no group)
+    assert queries == ["tag:#kind/open_issue", "tag:#rl-training"]
+    assert g["colorGroups"][0]["color"] == {"a": 1, "rgb": cc._OPEN_COLOR}
+    assert g["search"] == cc.GRAPH_FILTER
+
+
+def test_graph_merge_respects_user_choices(cc):
+    mine = {"query": "path:projects", "color": {"a": 1, "rgb": 1}}
+    _graph(cc, {"search": "-tag:#eval", "colorGroups": [
+        mine, {"query": "tag:#rl-training", "color": {"a": 1, "rgb": 123}}], "scale": 2})
+    nccl_fix(cc), eval_fix(cc)
+    g = _read_graph(cc)
+    assert g["search"] == "-tag:#eval" and g["scale"] == 2
+    assert {"query": "tag:#rl-training", "color": {"a": 1, "rgb": 123}} in g["colorGroups"]
+    assert g["colorGroups"][-1] == mine
+    before = (cc.HOME / ".obsidian" / "graph.json").stat().st_mtime_ns
+    cc.report_outcome(ids_of(cc)[0], True)
+    assert (cc.HOME / ".obsidian" / "graph.json").stat().st_mtime_ns == before  # unchanged: no write
+
+
+def ids_of(cc):
+    return [p.stem for p in entry_files(cc)]
+
+
+def test_graph_untouched_without_obsidian(cc):
+    nccl_fix(cc)
+    assert not (cc.HOME / ".obsidian").exists()
+
+
+def test_graph_stable_colours_and_overflow(cc):
+    cfg = cc._graph_config({}, {f"d{i:02d}": 2 + i for i in range(20)})
+    groups = cfg["colorGroups"][1:]
+    assert len(groups) == len(cc._PALETTE)  # extra domains stay uncoloured
+    assert len({g["color"]["rgb"] for g in groups}) == len(groups)
+    again = cc._graph_config(cfg, {**{f"d{i:02d}": 2 + i for i in range(20)}, "d00": 99})
+    assert {g["query"]: g["color"] for g in again["colorGroups"]}["tag:#d19"] == \
+        {g["query"]: g["color"] for g in groups}["tag:#d19"]

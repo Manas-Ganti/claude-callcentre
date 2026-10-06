@@ -36,7 +36,7 @@ Curator CLI (run from this repo): `uv run server.py <cmd>`
 7. If `review` or the files show entries without the `callcentre:begin` view (older layout),
    run `uv run server.py render`. `INDEX.md` refreshes itself; check it reads well.
 8. Commit the data on its own, separate from code:
-   `git add entries inbox INDEX.md && git commit -m "kb: curate <date>: <counts>"`
+   `git add entries inbox domains INDEX.md && git commit -m "kb: curate <date>: <counts>"`
 
 Finish with a short summary: filed / dismissed / submitted / merged / retagged counts, then
 anything that needs a human.

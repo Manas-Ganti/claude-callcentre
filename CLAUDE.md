@@ -34,6 +34,7 @@ Target layout:
 ├── pyproject.toml
 ├── .gitignore
 ├── INDEX.md                        # generated (data), Obsidian home note
+├── domains/                        # generated (data), one hub note per domain
 ├── entries/.gitkeep
 ├── inbox/.gitkeep
 ├── commands/callcentre-send.md     # user-scope /callcentre-send (installed to ~/.claude/commands/)
@@ -248,7 +249,12 @@ so `get`, search and duplicate checks see exactly the frontmatter and notes; rew
 never duplicates the view or loses notes. Prose is escaped for Obsidian (`$`, `<`, `#word`) but
 code spans and the fenced symptoms block are verbatim. `INDEX.md` lists open issues, entries
 by domain (most-used domain first, untagged last) and the inbox as `[[id|title]]` links; it is
-refreshed after every locked operation and not rewritten when unchanged. `render` upgrades
+refreshed after every locked operation and not rewritten when unchanged. Section headings link
+`domains/<tag>.md` hub notes (tagged with their domain, open issues first, removed when the domain
+disappears). If `.obsidian/graph.json` exists, colour groups are merged in: open issues first, then
+domains with 2+ notes rarest-first; a user-chosen colour or user-added group is never overwritten
+or dropped, the filter is set only when empty, and nothing is written when unchanged. Without
+`.obsidian/` nothing is created. `render` upgrades
 legacy files without touching their fields or notes, and skips unparseable ones. At MCP server
 start, `_render_missing` re-renders only entries whose view is missing or outdated.
 
@@ -285,5 +291,5 @@ Only after tests pass:
 - Run the full suite before every commit that touches `server.py`.
 - A change to matching (`_NOISE`, `_GENERIC`, `MIN_OVERLAP`, `STRONG_OVERLAP`, `DUP_THRESHOLD`)
   needs a new row in the `test_search.py` table showing the case that motivated it.
-- `entries/`, `inbox/` and `INDEX.md` are data, not code. Commits to them are knowledge-base updates and
+- `entries/`, `inbox/`, `domains/` and `INDEX.md` are data, not code. Commits to them are knowledge-base updates and
   should be separate from code commits. Curate them with `/curate`, not by hand-editing.

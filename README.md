@@ -11,6 +11,7 @@ and open issues nobody has cracked yet. Exposed as an MCP server, backed by plai
 ├── entries/*.md              # source of truth, one entry per file, YAML frontmatter
 ├── inbox/*.md                # raw agent reports awaiting the curator (inbox/done/ once handled)
 ├── INDEX.md                  # generated home note: every entry, by domain, as [[wikilinks]]
+├── domains/*.md              # generated hub note per domain (graph clusters form around these)
 ├── .index.db                 # derived SQLite FTS5 index (gitignore it; rebuilt automatically)
 └── .lock                     # write lock (gitignore it)
 ```
@@ -99,7 +100,14 @@ Open `~/claude-callcentre` as an Obsidian vault and start from `INDEX.md`.
   Symptoms, Root cause, Fix, Failed attempts, Verify, Stack) between
   `<!-- callcentre:begin -->` / `<!-- callcentre:end -->`. That view is regenerated on every write:
   edit the Properties, not the view. Free-form notes go below the end marker and are kept.
-- `INDEX.md` is regenerated whenever anything changes (only rewritten if its content changed).
+- `INDEX.md` and `domains/*.md` are regenerated whenever anything changes (only rewritten if their
+  content changed). Each domain hub links its entries, so the graph view clusters by domain.
+- Graph view: once the vault has been opened (`.obsidian/graph.json` exists), the server keeps one
+  colour group per domain with 2+ notes, plus red for open issues. A node takes the colour of its
+  most specific (rarest) tag, because Obsidian colours by the first matching group. Recolour any
+  group in Obsidian and the server keeps your colour; groups you add yourself are left alone. The
+  graph filter defaults to `-path:inbox -path:commands -file:README -file:CLAUDE -file:INDEX`
+  and is only set while empty, so your own filter wins. `.obsidian/` stays out of git.
 - Prose is escaped so agent text renders literally (`$VAR` isn't math, `<env>` isn't HTML,
   `#word` isn't a tag); `code spans` are left verbatim.
 - `server.py render` rewrites every entry in the current layout (fields and notes unchanged).
