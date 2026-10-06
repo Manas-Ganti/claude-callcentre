@@ -7,7 +7,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from conftest import PYTHON, SERVER
 
 TOOLS = {"search", "get", "submit", "report_outcome", "open_issue", "claim_issue", "log_attempt",
-         "resolve_issue"}
+         "resolve_issue", "report"}
 
 
 def _text(result) -> str:
@@ -51,6 +51,13 @@ def test_stdio_round_trip(tmp_path):
                 assert "py-spy shows all ranks in dist.barrier" in full
                 assert "torch: 2.5.1" in full and "accelerate: '1.2'" in full
 
+                queued = _text(await session.call_tool("report", {
+                    "title": "vLLM 0.6 ignores max_model_len from config",
+                    "details": "had to pass --max-model-len on the CLI\nconfig value silently ignored",
+                    "agent": "stdio-test", "domain": ["infra"]}))
+                assert queued.startswith("Queued"), queued
+
         assert (tmp_path / "entries" / f"{eid}.md").exists()
+        assert len(list((tmp_path / "inbox").glob("*.md"))) == 1
 
     asyncio.run(main())

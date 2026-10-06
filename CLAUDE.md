@@ -34,6 +34,9 @@ Target layout:
 ├── pyproject.toml
 ├── .gitignore
 ├── entries/.gitkeep
+├── inbox/.gitkeep
+├── commands/callcentre-send.md     # user-scope /callcentre-send (installed to ~/.claude/commands/)
+├── .claude/commands/curate.md      # project-scope /curate
 └── tests/
     ├── conftest.py
     ├── test_storage.py
@@ -42,6 +45,7 @@ Target layout:
     ├── test_issues.py
     ├── test_concurrency.py
     ├── test_cli.py
+    ├── test_curation.py
     └── test_mcp_stdio.py
 ```
 
@@ -200,15 +204,34 @@ Spawn `server.py` with `mcp.client.stdio.stdio_client` (`StdioServerParameters`,
 
 1. `initialize` returns instructions that mention `search` and `report_outcome`.
 2. `list_tools` returns exactly: `search`, `get`, `submit`, `report_outcome`, `open_issue`,
-   `claim_issue`, `log_attempt`, `resolve_issue`.
+   `claim_issue`, `log_attempt`, `resolve_issue`, `report`.
 3. Every tool has a non-empty description (Claude Code may defer tool schemas, but the
    descriptions are what it sees once loaded).
 4. `call_tool("submit", ...)` then `call_tool("search", ...)` round-trips: the submitted entry
    comes back.
 5. List-typed and dict-typed arguments (`symptoms`, `stack`) survive JSON transport.
+6. `call_tool("report", ...)` lands one file in `inbox/`.
 
 This test must pass on whichever `mcp` major version `uv` resolves (1.x uses `FastMCP`, 2.x
 uses `MCPServer`; the import shim in `server.py` handles both).
+
+### tests/test_curation.py: inbox and curator
+
+`report` writes to `inbox/` (never to `entries/`, never searchable) and needs title + details.
+Curator operations are CLI-only (not MCP tools) and take the write lock:
+
+- `file <inbox-id> <entry-id>...` moves the item to `inbox/done/` with `filed_as` (full ids,
+  prefixes resolved); an unknown entry id refuses and leaves the item in place.
+- `dismiss <inbox-id> <reason>` requires a reason and records it.
+- `retag <id> a,b` replaces `domain`.
+- `merge <keep> <drop>`: union of domain / symptoms / failed_attempts (an open issue's
+  `attempts` included), stack merged with keep winning, empty root_cause / verify / repro
+  filled from drop, uses and failures summed, verified if either was, drop's differing fix and
+  notes appended to keep's notes, `merged_from` records drop, drop's file is deleted. The old
+  id still resolves in `get` / `report_outcome`. Refuses self-merge and an open issue as keep.
+- `review` lists Inbox, Possible duplicates (Jaccard >= `REVIEW_DUP_THRESHOLD`), Unparseable
+  files, Untagged, Stale, Unverified, Open issues, then domain counts; `Nothing to review.`
+  when empty.
 
 ## Step 3: run
 
@@ -236,12 +259,12 @@ Only after tests pass:
    any existing entries. Show me the diff before writing.
 3. Append the "Call centre (shared knowledge base)" block from `README.md` to
    `~/.claude/CLAUDE.md` if it isn't there already. Show me the diff before writing.
-4. Tell me to open a new session and run `/mcp` to confirm `callcentre` shows 8 tools.
+4. Tell me to open a new session and run `/mcp` to confirm `callcentre` shows 9 tools.
 
 ## Working on this repo later
 
 - Run the full suite before every commit that touches `server.py`.
 - A change to matching (`_NOISE`, `_GENERIC`, `MIN_OVERLAP`, `STRONG_OVERLAP`, `DUP_THRESHOLD`)
   needs a new row in the `test_search.py` table showing the case that motivated it.
-- `entries/` is data, not code. Commits to it are knowledge-base updates and should be separate
-  from code commits.
+- `entries/` and `inbox/` are data, not code. Commits to them are knowledge-base updates and
+  should be separate from code commits. Curate them with `/curate`, not by hand-editing.

@@ -9,6 +9,7 @@ and open issues nobody has cracked yet. Exposed as an MCP server, backed by plai
 ~/claude-callcentre/          # $CALLCENTRE_HOME (make this a git repo)
 ├── server.py                 # MCP server + small CLI
 ├── entries/*.md              # source of truth, one entry per file, YAML frontmatter
+├── inbox/*.md                # raw agent reports awaiting the curator (inbox/done/ once handled)
 ├── .index.db                 # derived SQLite FTS5 index (gitignore it; rebuilt automatically)
 └── .lock                     # write lock (gitignore it)
 ```
@@ -33,6 +34,7 @@ Then add this to `~/.claude/CLAUDE.md` so agents actually use it:
 - After using an entry, call `report_outcome`.
 - Solved something new and non-obvious? `submit` the minimal fix plus what did NOT work.
 - Giving up or handing off? `open_issue` / `log_attempt` with everything you tried.
+- Learned something useful but no time for a clean entry? `report` the raw details.
 ```
 
 ## Tools
@@ -44,6 +46,26 @@ Then add this to `~/.claude/CLAUDE.md` so agents actually use it:
 | `submit(kind, title, symptoms, fix, ...)` | new `fix` or `convention`; refuses near-duplicates unless `force=True` |
 | `report_outcome(id, worked, note?)` | success → `verified`; 2 consecutive failures → `stale` (hidden from search by default) |
 | `open_issue` / `claim_issue` / `log_attempt` / `resolve_issue` | unsolved-problem queue with claim leases |
+| `report(title, details, agent?, project?, domain?)` | raw findings into `inbox/` for the curator; not searchable until filed |
+
+## Feeding it and organising it
+
+Two ways in, one curator pass:
+
+- **Structured**: agents that solved something cleanly call `submit` / `open_issue` themselves.
+  These are searchable immediately.
+- **Raw**: anything else goes to `report`, which drops it into `inbox/`.
+
+To make an agent send what it learned, run `/callcentre-send` at the end of its session (source:
+`commands/callcentre-send.md`, installed to `~/.claude/commands/`). Bash-only agents use
+`server.py report` (below).
+
+To organise, open a Claude Code session in this repo and run `/curate`
+(`.claude/commands/curate.md`). It reads `server.py review`, turns inbox items into entries,
+merges duplicates, retags, and commits `entries/` + `inbox/` as a data-only commit. The curator
+commands are CLI-only so ordinary agents never see them, and they take the same write lock as the
+tools, so curating is safe while other sessions are live. `merge` keeps the old id resolving
+(`merged_from`), so agents holding it can still `get` / `report_outcome`.
 
 ## Cluster failure workflow
 
@@ -67,6 +89,14 @@ uv run ~/claude-callcentre/server.py search "NCCL watchdog timeout"
 uv run ~/claude-callcentre/server.py get <id>
 uv run ~/claude-callcentre/server.py open        # list open issues
 uv run ~/claude-callcentre/server.py reindex
+echo "<raw details>" | uv run ~/claude-callcentre/server.py report "<title>" --agent X --project P --domain a,b
+
+# curator
+uv run ~/claude-callcentre/server.py review                       # what needs attention
+uv run ~/claude-callcentre/server.py file <inbox-id> <entry-id>... # inbox item became these entries
+uv run ~/claude-callcentre/server.py dismiss <inbox-id> <reason>
+uv run ~/claude-callcentre/server.py merge <keep-id> <drop-id>
+uv run ~/claude-callcentre/server.py retag <id> rl-training,infra
 ```
 
 ## Known limits (deliberate for v1)

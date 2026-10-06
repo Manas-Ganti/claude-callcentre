@@ -35,6 +35,7 @@ LOCK_FILE = HOME / ".lock"
 
 STALE_AFTER_FAILURES = 2      # consecutive failed reuses before an entry is marked stale
 DUP_THRESHOLD = 0.55          # token Jaccard on title+symptoms above which submit refuses
+REVIEW_DUP_THRESHOLD = 0.35   # lower bar for pairs the curator's `review` asks a human/agent to look at
 MIN_OVERLAP = 0.2             # share of query terms an entry must contain to be returned
 STRONG_OVERLAP = 0.4          # below this, hits are labelled WEAK
 STOPWORDS = set("""a an and are as at be but by for from has have in is it its of on or that the
@@ -48,7 +49,9 @@ Policy:
 2. If you use an entry, call `report_outcome` afterwards (worked or not). This keeps fixes trustworthy.
 3. If you solve something new and non-obvious, call `submit` with the MINIMAL fix and what did NOT work.
 4. If you give up or hand off, call `open_issue` (or `log_attempt` on an existing one) so the next agent
-   does not repeat your dead ends."""
+   does not repeat your dead ends.
+5. Learned something useful but can't write a clean entry? Call `report` with the raw details; a
+   curator files it."""
 
 mcp = _Server("callcentre", instructions=INSTRUCTIONS)
 
@@ -84,18 +87,23 @@ def _slug(text: str) -> str:
     return s[:60].rstrip("-") or "entry"
 
 
-def _new_id(title: str) -> str:
+def _inbox() -> Path:
+    """Raw agent reports awaiting the curator (not indexed, not searchable)."""
+    return HOME / "inbox"
+
+
+def _new_id(title: str, folder: Path | None = None) -> str:
     """Random suffix, retried until unused. Caller must hold _write_lock."""
     while True:
         eid = f"{_slug(title)}-{secrets.token_hex(2)}"
-        if not _path(eid).exists():
+        if not _path(eid, folder).exists():
             return eid
 
 
-def _path(entry_id: str) -> Path:
+def _path(entry_id: str, folder: Path | None = None) -> Path:
     if not re.fullmatch(r"[a-z0-9-]+", entry_id):
         raise ValueError(f"invalid id: {entry_id!r}")
-    return ENTRIES / f"{entry_id}.md"
+    return (folder or ENTRIES) / f"{entry_id}.md"
 
 
 def _read(path: Path) -> tuple[dict, str]:
@@ -106,9 +114,10 @@ def _read(path: Path) -> tuple[dict, str]:
     return (yaml.safe_load(m.group(1)) or {}), m.group(2).strip()
 
 
-def _write(entry: dict, notes: str = "") -> Path:
+def _write(entry: dict, notes: str = "", folder: Path | None = None) -> Path:
     """Atomic write. Caller must hold _write_lock."""
-    path = _path(entry["id"])
+    path = _path(entry["id"], folder)
+    path.parent.mkdir(parents=True, exist_ok=True)
     front = yaml.safe_dump(entry, sort_keys=False, allow_unicode=True, width=100)
     body = f"---\n{front}---\n{notes.strip()}\n" if notes.strip() else f"---\n{front}---\n"
     tmp = path.with_suffix(".md.tmp")
@@ -117,15 +126,30 @@ def _write(entry: dict, notes: str = "") -> Path:
     return path
 
 
+def _locate(entry_id: str, folder: Path | None = None) -> Path:
+    folder = folder or ENTRIES
+    path = _path(entry_id, folder)
+    if path.exists():
+        return path
+    hits = sorted(folder.glob(f"{entry_id}*.md"))  # allow unique prefix match
+    if not hits:  # merged away by the curator: follow the redirect
+        hits = [p for p in folder.glob("*.md") if entry_id in p.read_text(encoding="utf-8")
+                and entry_id in _as_list(_meta_or_empty(p).get("merged_from"))]
+    if len(hits) != 1:
+        raise FileNotFoundError(f"no unique entry for id {entry_id!r}")
+    return hits[0]
+
+
+def _meta_or_empty(path: Path) -> dict:
+    try:
+        e = _read(path)[0]
+    except Exception:
+        return {}
+    return e if isinstance(e, dict) else {}
+
+
 def _load(entry_id: str) -> tuple[dict, str]:
-    path = _path(entry_id)
-    if not path.exists():
-        # allow unique prefix match
-        hits = sorted(ENTRIES.glob(f"{entry_id}*.md"))
-        if len(hits) != 1:
-            raise FileNotFoundError(f"no unique entry for id {entry_id!r}")
-        path = hits[0]
-    return _read(path)
+    return _read(_locate(entry_id))
 
 
 # ----------------------------------------------------------------------------- index
@@ -513,10 +537,192 @@ def resolve_issue(id: str, fix: str, root_cause: str = "", verify: str = "",
     return f"Resolved {e['id']} → verified fix."
 
 
+@mcp.tool()
+def report(title: str, details: str, agent: str = "unknown", project: str = "",
+           domain: list[str] | None = None) -> str:
+    """Send raw findings to the curator's inbox when you learned something reusable but can't
+    write a clean entry (no time, root cause unclear, observations or gotchas rather than a fix).
+    details: paste error lines verbatim, what you tried and what happened, versions, commands.
+    project: repo or job it came from. A curator turns reports into proper entries; until then
+    they are NOT searchable, so prefer `submit` / `open_issue` when you can fill them in."""
+    if not title.strip() or not details.strip():
+        return "title and details are required."
+    with _write_lock():
+        item = {"id": _new_id(title, _inbox()), "title": title.strip(), "agent": agent,
+                "project": project, "domain": domain or [], "created": _now().isoformat()}
+        _write(item, details, _inbox())
+    return f"Queued {item['id']} for the curator (not searchable until filed)."
+
+
+# ----------------------------------------------------------------------------- curation
+# CLI-only: ordinary agents don't see these. All writes take the lock, so curating is safe while
+# other sessions are reading and writing.
+
+def _union(*lists) -> list:
+    out: list = []
+    for x in lists:
+        for v in _as_list(x):
+            if v not in out:
+                out.append(v)
+    return out
+
+
+def _close_inbox(item_id: str, **fields) -> str:
+    with _write_lock():
+        try:
+            src = _locate(item_id, _inbox())
+        except (FileNotFoundError, ValueError) as err:
+            return str(err).replace("entry", "inbox item")
+        item, details = _read(src)
+        item.update(fields, closed=_now().isoformat())
+        _write(item, details, _inbox() / "done")
+        src.unlink()
+    return f"Closed inbox item {item['id']}."
+
+
+def _file_inbox(item_id: str, entry_ids: list[str]) -> str:
+    """Record which entries an inbox item became and move it to inbox/done/."""
+    try:
+        full = [_load(e)[0]["id"] for e in entry_ids]
+    except (FileNotFoundError, ValueError) as err:
+        return f"Not filed: {err}"
+    return _close_inbox(item_id, filed_as=full)
+
+
+def _dismiss_inbox(item_id: str, reason: str) -> str:
+    if not reason.strip():
+        return "Give a reason for dismissing."
+    return _close_inbox(item_id, dismissed=reason.strip())
+
+
+def _retag(entry_id: str, domains: list[str]) -> str:
+    with _write_lock():
+        try:
+            path = _locate(entry_id)
+        except (FileNotFoundError, ValueError) as err:
+            return str(err)
+        e, notes = _read(path)
+        e["domain"] = domains
+        _write(e, notes)
+    return f"{e['id']} domain = {domains}."
+
+
+def _merge(keep_id: str, drop_id: str) -> str:
+    """Fold drop into keep: union symptoms/attempts/domains, sum trust counters, keep both fixes,
+    delete drop. Old ids keep resolving via merged_from."""
+    with _write_lock():
+        try:
+            kpath, dpath = _locate(keep_id), _locate(drop_id)
+        except (FileNotFoundError, ValueError) as err:
+            return str(err)
+        if kpath == dpath:
+            return "Cannot merge an entry into itself."
+        keep, knotes = _read(kpath)
+        drop, dnotes = _read(dpath)
+        if keep.get("kind") == "open_issue":
+            return "keep must be a fix or convention (resolve_issue the open issue first)."
+        keep["domain"] = _union(keep.get("domain"), drop.get("domain"))
+        keep["symptoms"] = _union(keep.get("symptoms"), drop.get("symptoms"))
+        keep["failed_attempts"] = _union(keep.get("failed_attempts"), drop.get("failed_attempts"),
+                                         drop.get("attempts"))
+        keep["stack"] = {**(drop.get("stack") or {}), **(keep.get("stack") or {})}
+        for k in ("root_cause", "verify", "repro"):
+            if not keep.get(k) and drop.get(k):
+                keep[k] = drop[k]
+        for k in ("uses", "failures"):
+            keep[k] = int(keep.get(k) or 0) + int(drop.get(k) or 0)
+        verified = [str(x) for x in (keep.get("last_verified"), drop.get("last_verified")) if x]
+        keep["last_verified"] = max(verified) if verified else None
+        if keep.get("status") != "verified" and drop.get("status") == "verified":
+            keep["status"], keep["consecutive_failures"] = "verified", 0
+        if keep.get("outcome_notes") or drop.get("outcome_notes"):
+            keep["outcome_notes"] = _union(keep.get("outcome_notes"), drop.get("outcome_notes"))[-10:]
+        keep["merged_from"] = _union(keep.get("merged_from"), [drop.get("id", dpath.stem)],
+                                     drop.get("merged_from"))
+        extra = []
+        dfix = str(drop.get("fix") or "").strip()
+        if dfix and dfix != str(keep.get("fix") or "").strip():
+            extra.append(f"Alternative fix from merged {drop.get('id', dpath.stem)}: {dfix}")
+        if dnotes:
+            extra.append(dnotes)
+        _write(keep, "\n\n".join([knotes, *extra]).strip())
+        dpath.unlink()
+    return f"Merged {drop.get('id', dpath.stem)} into {keep['id']}."
+
+
+def _review() -> str:
+    """Everything the curator should look at, most actionable first."""
+    entries, broken = [], []
+    for p in sorted(ENTRIES.glob("*.md")) if ENTRIES.exists() else []:
+        try:
+            e, _ = _read(p)
+        except Exception:
+            e = None
+        if not isinstance(e, dict) or not e:
+            broken.append(p.name)
+            continue
+        e.setdefault("id", p.stem)
+        entries.append(e)
+    inbox = []
+    for p in sorted(_inbox().glob("*.md")) if _inbox().exists() else []:
+        item = _meta_or_empty(p)
+        inbox.append(f"[{p.stem}] {item.get('title', '?')}  ({item.get('agent', '?')}"
+                     + (f", {item['project']}" if item.get("project") else "")
+                     + f", {str(item.get('created', '?'))[:10]})")
+    dups = []
+    keyed = [(e, f"{e.get('title', '')} {_flatten(e.get('symptoms'))}") for e in entries]
+    for i, (a, ta) in enumerate(keyed):
+        for b, tb in keyed[i + 1:]:
+            sim = _jaccard(ta, tb)
+            if sim >= REVIEW_DUP_THRESHOLD:
+                dups.append((sim, f"{a['id']} ~ {b['id']}  (similarity {sim:.2f})"))
+    fixes = [e for e in entries if e.get("kind") != "open_issue"]
+    issues = [e for e in entries if e.get("kind") == "open_issue"]
+    sections = [
+        ("Inbox", inbox),
+        ("Possible duplicates", [d for _, d in sorted(dups, reverse=True)]),
+        ("Unparseable files", broken),
+        ("Untagged (no domain)", [f"[{e['id']}] {e.get('title', '')}" for e in entries
+                                  if not e.get("domain")]),
+        ("Stale", [f"[{e['id']}] {e.get('title', '')}  (failed {e.get('failures', 0)}x)"
+                   for e in fixes if e.get("status") == "stale"]),
+        ("Unverified", [f"[{e['id']}] {e.get('title', '')}  (since {e.get('created', '?')})"
+                        for e in fixes if e.get("status") in (None, "unverified")]),
+        ("Open issues", [f"[{e['id']}] {e.get('title', '')}  {_oneline(e)}" for e in issues]),
+    ]
+    out = [f"## {name} ({len(rows)})\n" + "\n".join(f"- {r}" for r in rows)
+           for name, rows in sections if rows]
+    if not out:
+        return "Nothing to review."
+    counts: dict[str, int] = {}
+    for e in entries:
+        for d in _as_list(e.get("domain")):
+            counts[str(d)] = counts.get(str(d), 0) + 1
+    if counts:
+        out.append("Domains in use: " + ", ".join(f"{d} ({n})" for d, n in
+                                                  sorted(counts.items(), key=lambda x: -x[1])))
+    return "\n\n".join(out)
+
+
 # ----------------------------------------------------------------------------- CLI
 
+USAGE = """usage: server.py <command>   (no args: run MCP server)
+  search <text>                      get <id>
+  open                               reindex
+  report <title> [--agent A] [--project P] [--domain a,b]   (details on stdin)
+curator:
+  review                             file <inbox-id> <entry-id>...
+  dismiss <inbox-id> <reason>        merge <keep-id> <drop-id>
+  retag <id> <domain,domain>"""
+
+
+def _csv(x: str | None) -> list[str]:
+    return [d.strip() for d in (x or "").split(",") if d.strip()]
+
+
 def _cli(argv: list[str]) -> None:
-    cmd, rest = argv[0], " ".join(argv[1:])
+    cmd, args = argv[0], argv[1:]
+    rest = " ".join(args)
     if cmd == "search":
         print(search(rest))
     elif cmd == "get":
@@ -528,8 +734,28 @@ def _cli(argv: list[str]) -> None:
         INDEX_DB.unlink(missing_ok=True)
         con = _db(); _sync(con); n = con.execute("SELECT count(*) FROM meta").fetchone()[0]
         con.close(); print(f"indexed {n} entries")
+    elif cmd == "report":
+        opts, words, it = {}, [], iter(args)
+        for a in it:
+            if a in ("--agent", "--project", "--domain"):
+                opts[a[2:]] = next(it, "")
+            else:
+                words.append(a)
+        details = "" if sys.stdin.isatty() else sys.stdin.read()
+        print(report(" ".join(words), details, agent=opts.get("agent", "cli"),
+                     project=opts.get("project", ""), domain=_csv(opts.get("domain"))))
+    elif cmd == "review":
+        print(_review())
+    elif cmd == "file" and len(args) >= 2:
+        print(_file_inbox(args[0], args[1:]))
+    elif cmd == "dismiss" and len(args) >= 2:
+        print(_dismiss_inbox(args[0], " ".join(args[1:])))
+    elif cmd == "merge" and len(args) == 2:
+        print(_merge(*args))
+    elif cmd == "retag" and len(args) == 2:
+        print(_retag(args[0], _csv(args[1])))
     else:
-        print("usage: server.py [search <text> | get <id> | open | reindex]  (no args: run MCP server)")
+        print(USAGE)
 
 
 def _open_issues() -> list[tuple[str, str]]:
