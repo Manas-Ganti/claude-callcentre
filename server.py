@@ -785,9 +785,14 @@ def _merge(keep_id: str, drop_id: str) -> str:
         keep["failed_attempts"] = _union(keep.get("failed_attempts"), drop.get("failed_attempts"),
                                          drop.get("attempts"))
         keep["stack"] = {**(drop.get("stack") or {}), **(keep.get("stack") or {})}
+        extra = []
         for k in ("root_cause", "verify", "repro"):
-            if not keep.get(k) and drop.get(k):
+            dv = str(drop.get(k) or "").strip()
+            if not keep.get(k) and dv:
                 keep[k] = drop[k]
+            elif dv and dv != str(keep.get(k) or "").strip():  # both set: don't lose drop's
+                extra.append(f"{k.replace('_', ' ').capitalize()} from merged "
+                             f"{drop.get('id', dpath.stem)}: {dv}")
         for k in ("uses", "failures"):
             keep[k] = int(keep.get(k) or 0) + int(drop.get(k) or 0)
         verified = [str(x) for x in (keep.get("last_verified"), drop.get("last_verified")) if x]
@@ -798,7 +803,6 @@ def _merge(keep_id: str, drop_id: str) -> str:
             keep["outcome_notes"] = _union(keep.get("outcome_notes"), drop.get("outcome_notes"))[-10:]
         keep["merged_from"] = _union(keep.get("merged_from"), [drop.get("id", dpath.stem)],
                                      drop.get("merged_from"))
-        extra = []
         dfix = str(drop.get("fix") or "").strip()
         if dfix and dfix != str(keep.get("fix") or "").strip():
             extra.append(f"Alternative fix from merged {drop.get('id', dpath.stem)}: {dfix}")

@@ -93,6 +93,21 @@ def test_merge(cc):
     assert ids(cc.search(NCCL_QUERY)) == [keep]
 
 
+def test_merge_keeps_drops_differing_text_fields(cc):
+    keep = saved_id(cc.submit(kind="fix", title="HF token not found in SLURM jobs",
+                              symptoms=["GatedRepoError 401 in job"], fix="export HF_HOME",
+                              root_cause="token lives under HF_HOME", verify="hf auth whoami"))
+    drop = saved_id(cc.submit(kind="fix", title="Model re-downloads in every job", force=True,
+                              symptoms=["68 GB download at job start"], fix="export HF_HOME",
+                              root_cause="launcher defaults HF_HOME to /projects",
+                              verify="hf auth whoami"))
+    cc._merge(keep, drop)
+    e, notes = cc._read(cc.ENTRIES / f"{keep}.md")
+    assert e["root_cause"] == "token lives under HF_HOME"
+    assert f"Root cause from merged {drop}: launcher defaults HF_HOME to /projects" in notes
+    assert "Verify from merged" not in notes and "Alternative fix" not in notes
+
+
 def test_merged_id_still_resolves(cc):
     keep, drop = nccl_fix(cc), _second_nccl(cc)
     cc._merge(keep, drop)
