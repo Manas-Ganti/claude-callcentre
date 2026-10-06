@@ -1,0 +1,17 @@
+[project]
+name = "callcentre"
+version = "0.1.0"
+description = "Shared, file-backed knowledge base for Claude Code sessions, exposed over MCP"
+requires-python = ">=3.10"
+dependencies = ["mcp>=1.2,<3", "pyyaml>=6"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["slow: multi-process concurrency tests (run by default)"]
