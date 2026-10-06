@@ -19,6 +19,7 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -342,15 +343,43 @@ def _refresh_views() -> None:
         for p in ddir.glob("*.md") if ddir.exists() else []:
             if p.stem not in by_domain:
                 p.unlink()
-        graph = HOME / ".obsidian" / "graph.json"
-        if graph.exists():
-            cfg = json.loads(graph.read_text(encoding="utf-8") or "{}")
-            counts = {d: len(es) for d, es in by_domain.items() if d != "untagged"}
-            new = _graph_config(cfg, counts)
-            if new != cfg:
-                _atomic_write(graph, json.dumps(new, indent=2))
+        _sync_graph({d: len(es) for d, es in by_domain.items() if d != "untagged"})
     except Exception as err:  # never fail a write over the derived views; stdout is the MCP pipe
         print(f"callcentre: could not refresh views: {err}", file=sys.stderr)
+
+
+def _obsidian_running() -> bool:
+    try:
+        return subprocess.run(["pgrep", "-x", "Obsidian"], capture_output=True,
+                              timeout=2).returncode == 0
+    except Exception:
+        return False
+
+
+def _sync_graph(counts: dict[str, int]) -> str:
+    """Merge colour groups into .obsidian/graph.json. Obsidian keeps graph settings in memory and
+    saves them over external edits, so only write while it isn't running; the next refresh (or
+    server start, or `server.py obsidian`) after it quits applies anything pending."""
+    graph = HOME / ".obsidian" / "graph.json"
+    if not graph.exists():
+        return "no Obsidian vault here yet (open this folder in Obsidian once)."
+    cfg = json.loads(graph.read_text(encoding="utf-8") or "{}")
+    new = _graph_config(cfg, counts)
+    if new == cfg:
+        return "graph colours up to date."
+    if _obsidian_running():
+        return "Obsidian is running: quit it, then run `server.py obsidian` (or start any session)."
+    _atomic_write(graph, json.dumps(new, indent=2))
+    return f"graph colours written ({len(new['colorGroups'])} groups)."
+
+
+def _domain_counts() -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for e in _view_rows():
+        for d in _domains_of(e):
+            if d != "untagged":
+                counts[d] = counts.get(d, 0) + 1
+    return counts
 
 
 def _write_if_changed(path: Path, text: str) -> None:
@@ -1014,6 +1043,7 @@ USAGE = """usage: server.py <command>   (no args: run MCP server)
   report <title> [--agent A] [--project P] [--domain a,b]   (details on stdin)
 curator:
   review                             render
+  obsidian                           (re)apply graph colour groups; quit Obsidian first
   file <inbox-id> <entry-id>...      dismiss <inbox-id> <reason>
   merge <keep-id> <drop-id>          retag <id> <domain,domain>
   set <id> <field> <yaml value>      (e.g. set <id> last_verified 2026-09-26)"""
@@ -1051,6 +1081,10 @@ def _cli(argv: list[str]) -> None:
         print(_review())
     elif cmd == "render":
         print(_render_all())
+    elif cmd == "obsidian":
+        with _write_lock():
+            pass  # refreshes INDEX.md and domains/
+        print(_sync_graph(_domain_counts()))
     elif cmd == "file" and len(args) >= 2:
         print(_file_inbox(args[0], args[1:]))
     elif cmd == "dismiss" and len(args) >= 2:
@@ -1080,7 +1114,9 @@ if __name__ == "__main__":
         _cli(sys.argv[1:])
     else:
         try:
-            _render_missing()
+            if not _render_missing():
+                with _write_lock():
+                    pass  # refresh INDEX.md, domains/ and any pending graph colours
         except Exception as err:  # never block startup on the human view; stdout is the MCP pipe
-            print(f"callcentre: render at startup failed: {err}", file=sys.stderr)
+            print(f"callcentre: refresh at startup failed: {err}", file=sys.stderr)
         mcp.run()  # stdio transport

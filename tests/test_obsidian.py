@@ -226,3 +226,20 @@ def test_graph_stable_colours_and_overflow(cc):
     again = cc._graph_config(cfg, {**{f"d{i:02d}": 2 + i for i in range(20)}, "d00": 99})
     assert {g["query"]: g["color"] for g in again["colorGroups"]}["tag:#d19"] == \
         {g["query"]: g["color"] for g in groups}["tag:#d19"]
+
+
+def test_graph_not_written_while_obsidian_runs(cc, monkeypatch):
+    _graph(cc)
+    monkeypatch.setattr(cc, "_obsidian_running", lambda: True)
+    nccl_fix(cc), eval_fix(cc)
+    assert _read_graph(cc)["colorGroups"] == []  # Obsidian would save over it anyway
+    assert "quit it" in cc._sync_graph(cc._domain_counts())
+    monkeypatch.setattr(cc, "_obsidian_running", lambda: False)
+    assert "written" in cc._sync_graph(cc._domain_counts())
+    assert [g["query"] for g in _read_graph(cc)["colorGroups"]] == ["tag:#kind/open_issue",
+                                                                    "tag:#rl-training"]
+    assert cc._sync_graph(cc._domain_counts()) == "graph colours up to date."
+
+
+def test_sync_graph_without_vault(cc):
+    assert "open this folder in Obsidian" in cc._sync_graph({})

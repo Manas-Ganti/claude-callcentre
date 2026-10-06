@@ -108,6 +108,9 @@ Open `~/claude-callcentre` as an Obsidian vault and start from `INDEX.md`.
   group in Obsidian and the server keeps your colour; groups you add yourself are left alone. The
   graph filter defaults to `-path:inbox -path:commands -file:README -file:CLAUDE -file:INDEX`
   and is only set while empty, so your own filter wins. `.obsidian/` stays out of git.
+- Obsidian keeps graph settings in memory and saves them over outside edits, so the server only
+  writes `graph.json` while Obsidian is not running. Pending colour changes are applied at the
+  next session start or with `server.py obsidian` (quit Obsidian first).
 - Prose is escaped so agent text renders literally (`$VAR` isn't math, `<env>` isn't HTML,
   `#word` isn't a tag); `code spans` are left verbatim.
 - `server.py render` rewrites every entry in the current layout (fields and notes unchanged).

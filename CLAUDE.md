@@ -253,7 +253,8 @@ refreshed after every locked operation and not rewritten when unchanged. Section
 `domains/<tag>.md` hub notes (tagged with their domain, open issues first, removed when the domain
 disappears). If `.obsidian/graph.json` exists, colour groups are merged in: open issues first, then
 domains with 2+ notes rarest-first; a user-chosen colour or user-added group is never overwritten
-or dropped, the filter is set only when empty, and nothing is written when unchanged. Without
+or dropped, the filter is set only when empty, nothing is written when unchanged, and nothing is
+written while Obsidian is running (it would save its in-memory copy over ours). Without
 `.obsidian/` nothing is created. `render` upgrades
 legacy files without touching their fields or notes, and skips unparseable ones. At MCP server
 start, `_render_missing` re-renders only entries whose view is missing or outdated.

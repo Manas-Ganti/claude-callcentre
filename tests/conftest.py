@@ -37,6 +37,8 @@ def cc(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "ENTRIES", tmp_path / "entries")
     monkeypatch.setattr(server, "INDEX_DB", tmp_path / ".index.db")
     monkeypatch.setattr(server, "LOCK_FILE", tmp_path / ".lock")
+    # results must not depend on whether the developer has Obsidian open
+    monkeypatch.setattr(server, "_obsidian_running", lambda: False)
     return server
 
 
