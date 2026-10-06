@@ -51,7 +51,10 @@ Policy:
 4. If you give up or hand off, call `open_issue` (or `log_attempt` on an existing one) so the next agent
    does not repeat your dead ends.
 5. Learned something useful but can't write a clean entry? Call `report` with the raw details; a
-   curator files it."""
+   curator files it.
+Domain tags (reuse these; add a new short one only if none fits): rl-training, sft, eval, infra, slurm, vt-arc, distributed, deepspeed, structured-output,
+isaac-sim, env (RL / simulation environments), python-env (conda, pip, package versions and
+installs), dataviz, observable."""
 
 mcp = _Server("callcentre", instructions=INSTRUCTIONS)
 
@@ -270,9 +273,23 @@ def _refresh_index_note() -> None:
 
 def _render_all() -> str:
     """Rewrite every entry in the current layout (frontmatter and notes unchanged)."""
+    n, bad = _rerender(sorted(ENTRIES.glob("*.md")) if ENTRIES.exists() else [])
+    return f"rendered {n} entries" + (f"; skipped unparseable: {', '.join(bad)}" if bad else "")
+
+
+def _render_missing() -> int:
+    """Render entries whose view is missing or from another layout version (e.g. written by an
+    older server still running in some session). Runs at server start; a no-op when all current."""
+    if not ENTRIES.exists():
+        return 0
+    todo = [p for p in sorted(ENTRIES.glob("*.md")) if _BEGIN not in p.read_text(encoding="utf-8")]
+    return _rerender(todo)[0] if todo else 0
+
+
+def _rerender(paths: list[Path]) -> tuple[int, list[str]]:
     n, bad = 0, []
     with _write_lock():
-        for p in sorted(ENTRIES.glob("*.md")):
+        for p in paths:
             try:
                 e, notes = _read(p)
                 if not isinstance(e, dict) or e.get("id") != p.stem:
@@ -282,7 +299,7 @@ def _render_all() -> str:
                 continue
             _write(e, notes)
             n += 1
-    return f"rendered {n} entries" + (f"; skipped unparseable: {', '.join(bad)}" if bad else "")
+    return n, bad
 
 
 def _locate(entry_id: str, folder: Path | None = None) -> Path:
@@ -512,7 +529,7 @@ def search(query: str, domain: str | None = None, kind: str | None = None,
            limit: int = 5, include_stale: bool = False) -> str:
     """Search solved problems, conventions and open issues. Pass the error lines or symptom
     description you were given (job ids, hostnames, ranks and numbers are stripped automatically).
-    Optional filters: domain (e.g. 'rl-training', 'eval', 'infra', 'env'),
+    Optional filters: domain (e.g. 'rl-training', 'eval', 'infra', 'python-env', 'isaac-sim'),
     kind ('fix' | 'convention' | 'open_issue'). Returns compact one-line summaries; use `get` for
     details. Hits marked WEAK share only part of the query's terms: read before trusting."""
     lines = [l for l in (_normalize(x) for x in query.splitlines()) if l]
@@ -561,7 +578,9 @@ def submit(kind: str, title: str, symptoms: list[str], fix: str,
     e.g. the canonical way to run an eval harness). Write the MINIMAL fix, not the debugging story.
     symptoms: exact error strings and/or observable behaviour. failed_attempts: plausible things
     that did NOT work. verify: a command or check that confirms the fix. stack: relevant versions,
-    e.g. {"trl": "0.x", "vllm": "0.x"}. Set verified_now=True only if you confirmed it worked in this
+    e.g. {"trl": "0.x", "vllm": "0.x"}. domain: reuse the tags in the server instructions, e.g.
+    ["rl-training", "python-env"]; `env` means RL/simulation environments, `python-env` means
+    conda/pip/package versions. Set verified_now=True only if you confirmed it worked in this
     session. Refuses near-duplicates unless force=True (prefer report_outcome on the existing entry)."""
     if kind not in ("fix", "convention"):
         return "kind must be 'fix' or 'convention' (use open_issue for unsolved problems)."
@@ -619,7 +638,8 @@ def open_issue(title: str, symptoms: list[str], repro: str = "",
                attempts: list[str] | None = None, domain: list[str] | None = None,
                stack: dict | None = None, force: bool = False) -> str:
     """Log an unsolved problem so other agents can pick it up. Include everything you tried in
-    attempts (with the result of each) so nobody repeats your dead ends."""
+    attempts (with the result of each) so nobody repeats your dead ends. domain: reuse the tags in
+    the server instructions."""
     symptoms = _specific(symptoms)
     with _write_lock():
         dups = _find_duplicates(title, symptoms)
@@ -702,7 +722,8 @@ def report(title: str, details: str, agent: str = "unknown", project: str = "",
     """Send raw findings to the curator's inbox when you learned something reusable but can't
     write a clean entry (no time, root cause unclear, observations or gotchas rather than a fix).
     details: paste error lines verbatim, what you tried and what happened, versions, commands.
-    project: repo or job it came from. A curator turns reports into proper entries; until then
+    project: repo or job it came from. domain: tags from the server instructions, if obvious.
+    A curator turns reports into proper entries; until then
     they are NOT searchable, so prefer `submit` / `open_issue` when you can fill them in."""
     if not title.strip() or not details.strip():
         return "title and details are required."
@@ -764,6 +785,37 @@ def _retag(entry_id: str, domains: list[str]) -> str:
         e["domain"] = domains
         _write(e, notes)
     return f"{e['id']} domain = {domains}."
+
+
+_STATUSES = {"fix": ("verified", "unverified", "stale"), "convention": ("verified", "unverified", "stale"),
+             "open_issue": ("open", "claimed")}
+
+
+def _set_field(entry_id: str, field: str, raw: str) -> str:
+    """Curator correction of one frontmatter field. raw is YAML (`null` clears; dates stay strings)."""
+    if field in ("id", "kind"):
+        return f"{field} can't be changed with set (use submit/merge/resolve_issue)."
+    if not re.fullmatch(r"[a-z_]+", field):
+        return f"invalid field: {field!r}"
+    try:
+        value = yaml.safe_load(raw) if raw.strip() else None
+    except yaml.YAMLError as err:
+        return f"value is not valid YAML: {err}"
+    if isinstance(value, (dt.date, dt.datetime)):
+        value = value.isoformat()
+    with _write_lock():
+        try:
+            path = _locate(entry_id)
+        except (FileNotFoundError, ValueError) as err:
+            return str(err)
+        e, notes = _read(path)
+        allowed = _STATUSES.get(e.get("kind"), ())
+        if field == "status" and value not in allowed:
+            return f"status for a {e.get('kind')} must be one of {list(allowed)}."
+        old = e.get(field)
+        e[field] = value
+        _write(e, notes)
+    return f"{e['id']} {field}: {old!r} -> {value!r}."
 
 
 def _merge(keep_id: str, drop_id: str) -> str:
@@ -876,7 +928,8 @@ USAGE = """usage: server.py <command>   (no args: run MCP server)
 curator:
   review                             render
   file <inbox-id> <entry-id>...      dismiss <inbox-id> <reason>
-  merge <keep-id> <drop-id>          retag <id> <domain,domain>"""
+  merge <keep-id> <drop-id>          retag <id> <domain,domain>
+  set <id> <field> <yaml value>      (e.g. set <id> last_verified 2026-09-26)"""
 
 
 def _csv(x: str | None) -> list[str]:
@@ -919,6 +972,8 @@ def _cli(argv: list[str]) -> None:
         print(_merge(*args))
     elif cmd == "retag" and len(args) == 2:
         print(_retag(args[0], _csv(args[1])))
+    elif cmd == "set" and len(args) >= 3:
+        print(_set_field(args[0], args[1], " ".join(args[2:])))
     else:
         print(USAGE)
 
@@ -937,4 +992,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         _cli(sys.argv[1:])
     else:
+        try:
+            _render_missing()
+        except Exception as err:  # never block startup on the human view; stdout is the MCP pipe
+            print(f"callcentre: render at startup failed: {err}", file=sys.stderr)
         mcp.run()  # stdio transport

@@ -49,6 +49,13 @@ Then add this to `~/.claude/CLAUDE.md` so agents actually use it:
 | `open_issue` / `claim_issue` / `log_attempt` / `resolve_issue` | unsolved-problem queue with claim leases |
 | `report(title, details, agent?, project?, domain?)` | raw findings into `inbox/` for the curator; not searchable until filed |
 
+## Domain tags
+
+Reuse these (they're in the server instructions every agent receives); add a new short tag only
+if none fits: `rl-training`, `sft`, `eval`, `infra`, `slurm`, `vt-arc`, `distributed`,
+`deepspeed`, `structured-output`, `isaac-sim`, `env` (RL / simulation environments),
+`python-env` (conda, pip, package versions and installs), `dataviz`, `observable`.
+
 ## Feeding it and organising it
 
 Two ways in, one curator pass:
@@ -96,6 +103,8 @@ Open `~/claude-callcentre` as an Obsidian vault and start from `INDEX.md`.
 - Prose is escaped so agent text renders literally (`$VAR` isn't math, `<env>` isn't HTML,
   `#word` isn't a tag); `code spans` are left verbatim.
 - `server.py render` rewrites every entry in the current layout (fields and notes unchanged).
+  Every MCP server also renders any entry with a missing or outdated view when it starts, so
+  entries written by sessions still running an older server get fixed by the next session.
 
 Agents never need the view: `get` returns the frontmatter plus notes, exactly as before.
 
@@ -115,6 +124,7 @@ uv run ~/claude-callcentre/server.py file <inbox-id> <entry-id>... # inbox item 
 uv run ~/claude-callcentre/server.py dismiss <inbox-id> <reason>
 uv run ~/claude-callcentre/server.py merge <keep-id> <drop-id>
 uv run ~/claude-callcentre/server.py retag <id> rl-training,infra
+uv run ~/claude-callcentre/server.py set <id> last_verified 2026-09-26   # fix one field (YAML value)
 ```
 
 ## Known limits (deliberate for v1)

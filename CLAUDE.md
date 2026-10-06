@@ -213,6 +213,8 @@ Spawn `server.py` with `mcp.client.stdio.stdio_client` (`StdioServerParameters`,
    comes back.
 5. List-typed and dict-typed arguments (`symptoms`, `stack`) survive JSON transport.
 6. `call_tool("report", ...)` lands one file in `inbox/`.
+7. Instructions carry the shared domain vocabulary (`python-env` etc.), and a legacy-format entry
+   seeded before startup has been rendered by the time `initialize` returns.
 
 This test must pass on whichever `mcp` major version `uv` resolves (1.x uses `FastMCP`, 2.x
 uses `MCPServer`; the import shim in `server.py` handles both).
@@ -226,6 +228,9 @@ Curator operations are CLI-only (not MCP tools) and take the write lock:
   prefixes resolved); an unknown entry id refuses and leaves the item in place.
 - `dismiss <inbox-id> <reason>` requires a reason and records it.
 - `retag <id> a,b` replaces `domain`.
+- `set <id> <field> <yaml>` changes one frontmatter field (dates stay strings, `null` clears);
+  refuses `id` / `kind`, invalid field names, invalid YAML and statuses not valid for the kind,
+  leaving the file untouched.
 - `merge <keep> <drop>`: union of domain / symptoms / failed_attempts (an open issue's
   `attempts` included), stack merged with keep winning, empty root_cause / verify / repro
   filled from drop, uses and failures summed, verified if either was, drop's differing fix and
@@ -244,7 +249,8 @@ never duplicates the view or loses notes. Prose is escaped for Obsidian (`$`, `<
 code spans and the fenced symptoms block are verbatim. `INDEX.md` lists open issues, entries
 by domain (most-used domain first, untagged last) and the inbox as `[[id|title]]` links; it is
 refreshed after every locked operation and not rewritten when unchanged. `render` upgrades
-legacy files without touching their fields or notes, and skips unparseable ones.
+legacy files without touching their fields or notes, and skips unparseable ones. At MCP server
+start, `_render_missing` re-renders only entries whose view is missing or outdated.
 
 ## Step 3: run
 

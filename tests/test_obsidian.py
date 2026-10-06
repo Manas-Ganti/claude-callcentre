@@ -131,3 +131,23 @@ def test_render_upgrades_legacy_files(cc):
     assert "# Old style entry" in text and text.endswith(f"{cc._END}\nhand notes here\n")
     assert "[[legacy-0001|Old style entry]] · used 2×" in (cc.HOME / "INDEX.md").read_text()
     assert len(entry_files(cc)) == 2
+
+
+LEGACY = ("---\nid: legacy-0001\nkind: fix\ntitle: Old style entry\nsymptoms:\n- boom\n"
+          "fix: do the thing\nstatus: unverified\nuses: 0\nfailures: 0\n---\nhand notes\n")
+
+
+def test_render_missing_only_touches_outdated_files(cc):
+    nccl = nccl_fix(cc)
+    (cc.ENTRIES / "legacy-0001.md").write_text(LEGACY)
+    current = cc.ENTRIES / f"{nccl}.md"
+    before = current.stat().st_mtime_ns
+    assert cc._render_missing() == 1
+    assert "# Old style entry" in (cc.ENTRIES / "legacy-0001.md").read_text()
+    assert cc._read(cc.ENTRIES / "legacy-0001.md")[1] == "hand notes"
+    assert current.stat().st_mtime_ns == before
+    assert cc._render_missing() == 0
+
+
+def test_render_missing_on_empty_home(cc):
+    assert cc._render_missing() == 0

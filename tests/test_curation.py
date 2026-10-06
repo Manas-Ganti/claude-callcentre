@@ -159,3 +159,27 @@ def test_review_sections(cc):
     assert loose in sec["## Unverified (1)"] and ev not in sec["## Unverified (1)"]
     assert iid in sec["## Open issues (1)"] and "OPEN (unclaimed" in sec["## Open issues (1)"]
     assert out.splitlines()[-1].startswith("Domains in use: rl-training (3)")
+
+
+def test_set_field(cc):
+    eid = nccl_fix(cc)
+    assert "'2026-09-26'" in cc._set_field(eid, "last_verified", "2026-09-26")
+    e = _entry(cc, eid)
+    assert e["last_verified"] == "2026-09-26" and isinstance(e["last_verified"], str)
+    assert "last verified 2026-09-26" in (cc.ENTRIES / f"{eid}.md").read_text()
+    cc._set_field(eid, "stack", "{torch: 2.5.1, nodes: 2}")
+    assert _entry(cc, eid)["stack"] == {"torch": "2.5.1", "nodes": 2}
+    cc._set_field(eid, "verify", "null")
+    assert _entry(cc, eid)["verify"] is None
+
+
+def test_set_field_refusals(cc):
+    eid = nccl_fix(cc)
+    before = (cc.ENTRIES / f"{eid}.md").read_text()
+    assert "can't be changed" in cc._set_field(eid, "id", "x-0000")
+    assert "can't be changed" in cc._set_field(eid, "kind", "open_issue")
+    assert "invalid field" in cc._set_field(eid, "Bad-Field", "1")
+    assert "must be one of" in cc._set_field(eid, "status", "open")
+    assert "not valid YAML" in cc._set_field(eid, "stack", "{unclosed")
+    assert "no unique entry" in cc._set_field("missing-0000", "verify", "x")
+    assert (cc.ENTRIES / f"{eid}.md").read_text() == before

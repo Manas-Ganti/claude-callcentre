@@ -22,11 +22,18 @@ def test_stdio_round_trip(tmp_path):
     params = StdioServerParameters(command=PYTHON, args=[str(SERVER)],
                                    env={"CALLCENTRE_HOME": str(tmp_path), "PATH": os.environ["PATH"]})
 
+    (tmp_path / "entries").mkdir()
+    legacy = tmp_path / "entries" / "legacy-0001.md"  # as written by an older server version
+    legacy.write_text("---\nid: legacy-0001\nkind: fix\ntitle: Old style entry\nsymptoms:\n- boom\n"
+                      "fix: do the thing\nstatus: unverified\nuses: 0\nfailures: 0\n---\n")
+
     async def main():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
                 init = await session.initialize()
                 assert "search" in init.instructions and "report_outcome" in init.instructions
+                assert "python-env" in init.instructions  # shared domain vocabulary
+                assert "callcentre:begin" in legacy.read_text()  # rendered at startup
 
                 tools = (await session.list_tools()).tools
                 assert {t.name for t in tools} == TOOLS and len(tools) == len(TOOLS)

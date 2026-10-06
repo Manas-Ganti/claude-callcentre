@@ -14,7 +14,9 @@ to the call centre (`mcp__callcentre__*` tools). Do this now, before anything el
      hostnames are fine; they're stripped at match time). `fix` = the MINIMAL change, not the
      story. Also fill `root_cause`, `failed_attempts` (things that looked right but didn't work),
      `verify` (a command that confirms it), `stack` (relevant versions, GPU type, node count) and
-     `domain` (`rl-training`, `eval`, `infra`, `env`, or a short new tag).
+     `domain` (reuse the tags listed in the call centre's server instructions: e.g. `rl-training`,
+     `eval`, `infra`, `slurm`, `isaac-sim`; `env` = RL/sim environments, `python-env` =
+     conda/pip/package versions).
      `verified_now=True` only if you saw it work in this session.
 3. **Problems still unsolved.** `search` with `kind="open_issue"`; if one exists, `log_attempt`
    for each thing you tried, otherwise `open_issue` with symptoms, repro and every attempt + result.

@@ -8,7 +8,7 @@ atomically). Never edit or delete those files by hand, and never touch code in t
 
 Curator CLI (run from this repo): `uv run server.py <cmd>`
 `review` · `render` · `file <inbox-id> <entry-id>...` · `dismiss <inbox-id> <reason>` ·
-`merge <keep-id> <drop-id>` · `retag <id> <a,b>`
+`merge <keep-id> <drop-id>` · `retag <id> <a,b>` · `set <id> <field> <yaml value>`
 
 1. Run `uv run server.py review` and read all of it.
 2. **Inbox**, one item at a time: `cat inbox/<id>.md`, then decide:
@@ -26,7 +26,9 @@ Curator CLI (run from this repo): `uv run server.py <cmd>`
 3. **Possible duplicates**: `get` both. If they're the same problem, `merge` the weaker one into
    the clearer / more-used one (old ids keep resolving). If they're genuinely different, leave
    them and say so in your summary.
-4. **Untagged**: `retag` with existing domains where they fit.
+4. **Tags**: `retag` untagged entries, and entries whose tags drift from the vocabulary in
+   README.md "Domain tags" (`env` = RL/sim environments, `python-env` = conda/pip/package versions).
+   Use `set` for other one-field corrections (e.g. a wrong `last_verified` date).
 5. **Stale**: if a newer entry supersedes it, `merge <newer> <stale>`; otherwise leave it (stale
    entries are already hidden from search).
 6. **Unparseable files, open issues with expired claims or many attempts, and anything you're unsure
